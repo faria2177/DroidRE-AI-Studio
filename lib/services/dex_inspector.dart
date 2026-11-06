@@ -1,6 +1,5 @@
 import 'dart:convert';
 import 'dart:isolate';
-import 'dart:typed_data';
 
 import 'package:flutter/foundation.dart';
 
@@ -64,11 +63,6 @@ class DexInspector {
     int u32(int offset) {
       check(offset, 4);
       return data.getUint32(offset, Endian.little);
-    }
-
-    int u16(int offset) {
-      check(offset, 2);
-      return data.getUint16(offset, Endian.little);
     }
 
     if (ascii.decode(input.sublist(0, 4)) != 'dex\n' ||
