@@ -30,7 +30,8 @@ class DexGraphResult {
   const DexGraphResult({required this.root, required this.edges,
     required this.declarations, required this.scannedDexFiles,
     required this.scannedMethods, required this.skippedMethods,
-    required this.skippedDexFiles, required this.truncated});
+    required this.skippedDexFiles, required this.truncated,
+    required this.warnings});
 
   final String root;
   final List<DexCallEdge> edges;
@@ -40,6 +41,7 @@ class DexGraphResult {
   final int skippedMethods;
   final int skippedDexFiles;
   final bool truncated;
+  final List<String> warnings;
 
   List<DexCallEdge> get directIncoming =>
       edges.where((edge) => edge.callee == root).toList();
@@ -106,6 +108,7 @@ class DexCallGraph {
     var skippedDex = 0;
     var codeUnits = 0;
     var truncated = names.length > maxDexFiles;
+    final warnings = <String>[];
 
     for (final name in names.take(maxDexFiles)) {
       if (scanned >= maxScannedMethods || codeUnits >= maxCodeUnits ||
@@ -179,8 +182,9 @@ class DexCallGraph {
             break;
           }
         }
-      } on FormatException {
+      } on FormatException catch (error) {
         skippedDex++;
+        warnings.add('$name: ${error.message}');
       }
       if (truncated) {
         break;
@@ -189,6 +193,7 @@ class DexCallGraph {
     return DexGraphResult(root: root, edges: edges,
         declarations: declarations, scannedDexFiles: dexCount,
         scannedMethods: scanned, skippedMethods: skipped,
-        skippedDexFiles: skippedDex, truncated: truncated);
+        skippedDexFiles: skippedDex, truncated: truncated,
+        warnings: warnings);
   }
 }

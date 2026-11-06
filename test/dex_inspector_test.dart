@@ -156,9 +156,11 @@ void main() {
     for (final (i, word) in <int>[0x1071, 0, 0, 0x000e].indexed) {
       data.setUint16(296 + i * 2, word, Endian.little);
     }
+    expect(DexInspector.inspectBytes(other).classes.single.details.single.name,
+        'call');
     final result = DexCallGraph.scanBytes(
         {'classes.dex': root, 'classes2.dex': other}, 'classes.dex', 0);
-    expect(result.scannedDexFiles, 2);
+    expect(result.scannedDexFiles, 2, reason: result.warnings.join('; '));
     expect(result.directIncoming, hasLength(1));
     expect(result.directIncoming.single.caller, contains('->call('));
     expect(result.directIncoming.single.callee, contains('->run('));

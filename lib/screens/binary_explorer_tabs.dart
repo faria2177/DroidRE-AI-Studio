@@ -97,6 +97,9 @@ class _DexBrowserTabState extends State<DexBrowserTab> {
                     '${graph.skippedMethods} unsupported method bodies; '
                     '${graph.skippedDexFiles} skipped DEX files. '
                     '${graph.truncated ? 'Partial results (scan cap).' : 'Static references only.'}'),
+                for (final warning in graph.warnings.take(3))
+                  Text('Skipped: $warning', style: TextStyle(
+                      color: Theme.of(context).colorScheme.error)),
                 const SizedBox(height: 12),
                 for (final section in sections) ...[
                   Text('${section.$1} (${section.$2.length})',
