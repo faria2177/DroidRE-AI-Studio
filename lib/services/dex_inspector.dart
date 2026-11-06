@@ -308,10 +308,14 @@ class DexInspector {
         }
         final calls = decoded.instructions.any((item) {
           if (!item.mnemonic.startsWith('invoke-') ||
-              item.mnemonic.startsWith('invoke-custom')) return false;
+              item.mnemonic.startsWith('invoke-custom')) {
+            return false;
+          }
           return units[item.offset + 1] == targetMethodId;
         });
-        if (calls) matches.add(method);
+        if (calls) {
+          matches.add(method);
+        }
       } on FormatException {
         skipped++;
       }
