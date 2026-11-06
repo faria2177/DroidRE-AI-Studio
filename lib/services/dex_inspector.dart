@@ -247,15 +247,20 @@ class DexInspector {
           name == 'new-array' || name.startsWith('filled-new-array')) {
         kind = 'type';
       }
-      if (kind == null) continue;
+      final refKind = kind;
+      if (refKind == null) {
+        continue;
+      }
       final offset = instruction.offset;
       final index = name == 'const-string/jumbo'
           ? units[offset + 1] | (units[offset + 2] << 16)
           : units[offset + 1];
-      final key = '$kind:$index';
-      refs.putIfAbsent(key, () => DexCodeReference(kind: kind!, index: index,
-          label: symbols.resolve(kind!, index)));
-      if (refs.length >= 150) break;
+      final key = '$refKind:$index';
+      refs.putIfAbsent(key, () => DexCodeReference(kind: refKind, index: index,
+          label: symbols.resolve(refKind, index)));
+      if (refs.length >= 150) {
+        break;
+      }
     }
     final heading = method.smaliPreview.split('\n').first;
     final text = '$heading\n'
@@ -283,7 +288,9 @@ class DexInspector {
     var codeUnitsRead = 0;
     var truncated = false;
     for (final method in methods) {
-      if (method.codeOffset == 0) continue;
+      if (method.codeOffset == 0) {
+        continue;
+      }
       if (scanned >= 5000 || codeUnitsRead + method.instructionCount > 1000000 ||
           matches.length >= 100) {
         truncated = true;

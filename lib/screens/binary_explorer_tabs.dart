@@ -30,8 +30,12 @@ class _DexBrowserTabState extends State<DexBrowserTab> {
         content: SizedBox(width: 620, child: FutureBuilder<DexCallerResult>(
           future: task,
           builder: (context, snapshot) {
-            if (snapshot.hasError) return Text('XREF scan failed: ${snapshot.error}');
-            if (!snapshot.hasData) return const LinearProgressIndicator();
+            if (snapshot.hasError) {
+              return Text('XREF scan failed: ${snapshot.error}');
+            }
+            if (!snapshot.hasData) {
+              return const LinearProgressIndicator();
+            }
             final result = snapshot.data!;
             return SizedBox(height: 410, child: Column(children: [
               Text('Scanned ${result.scanned} indexed methods; '
@@ -117,7 +121,9 @@ class _DexBrowserTabState extends State<DexBrowserTab> {
                               break;
                             }
                           }
-                          if (target != null) break;
+                          if (target != null) {
+                            break;
+                          }
                         }
                         if (target == null) {
                           ScaffoldMessenger.of(context).showSnackBar(

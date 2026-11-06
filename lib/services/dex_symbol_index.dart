@@ -85,7 +85,9 @@ class DexSymbolIndex {
           break;
         }
       }
-      if (!complete) throw const FormatException('Invalid DEX string length');
+      if (!complete) {
+        throw const FormatException('Invalid DEX string length');
+      }
       final start = at;
       while (at < bytes.length && bytes[at] != 0 && at - start <= 8192) {
         at++;
@@ -115,7 +117,9 @@ class DexSymbolIndex {
     final params = StringBuffer();
     if (paramsOff != 0) {
       final count = u32(paramsOff);
-      if (count > 255) throw const FormatException('DEX parameter list too long');
+      if (count > 255) {
+        throw const FormatException('DEX parameter list too long');
+      }
       check(paramsOff + 4, count * 2);
       for (var i = 0; i < count; i++) {
         params.write(typeAt(u16(paramsOff + 4 + 2 * i)));
