@@ -21,6 +21,15 @@ void main() {
 
     expect(find.text('Import an APK or bundle'), findsOneWidget);
     expect(find.text('No projects yet'), findsOneWidget);
+    expect(
+      find.byWidgetPredicate((widget) {
+        if (widget is! Image) return false;
+        final image = widget.image;
+        return image is AssetImage &&
+            image.assetName == 'assets/branding/droidre_logo.png';
+      }),
+      findsOneWidget,
+    );
     controller.dispose();
   });
 }

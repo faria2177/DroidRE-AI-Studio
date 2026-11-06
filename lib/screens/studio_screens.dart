@@ -74,7 +74,12 @@ class _StudioShellState extends State<StudioShell> {
             title: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Icon(Icons.android, color: Theme.of(context).colorScheme.primary),
+                Image.asset(
+                  'assets/branding/droidre_logo.png',
+                  width: 32,
+                  height: 32,
+                  semanticLabel: 'DroidRE AI Studio logo',
+                ),
                 const SizedBox(width: 10),
                 Text(wide ? 'DroidRE AI Studio' : _titles[_tab]),
               ],
@@ -197,7 +202,12 @@ class HomeScreen extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Icon(Icons.layers_outlined, size: 42, color: Color(0xff8df4db)),
+              Image.asset(
+                'assets/branding/droidre_logo.png',
+                width: 76,
+                height: 76,
+                semanticLabel: 'DroidRE AI Studio logo',
+              ),
               const SizedBox(height: 14),
               const Text(
                 'Explore the inside of Android apps',

@@ -2,10 +2,11 @@
 
 An **Android-first Flutter project** for offline APK inspection and optional AI code explanations.
 
-**Current version:** 0.3.0 — DEX method details, raw instruction previews and resource browser; not a full JADX or Apktool replacement.
+**Current version:** 0.3.1 — new DroidRE branding, DEX method details, raw instruction previews and resource browser; not a full JADX or Apktool replacement.
 
 ## What works today
 
+- Original DroidRE cyan/violet logo, Android adaptive/legacy launcher icons, branded startup and in-app header.
 - Modern Material 3 home, projects, analysis, tools and AI screens.
 - Android file picker import for APK/ZIP, and basic APKS/XAPK/APKM/AAB container listing.
 - Read-only local archive enumeration, file count, SHA-256, DEX/native `.so` inventory, and limited framework indicators.

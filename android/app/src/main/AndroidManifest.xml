@@ -3,7 +3,7 @@
     <application
         android:name="${applicationName}"
         android:label="DroidRE AI Studio"
-        android:icon="@android:drawable/sym_def_app_icon"
+        android:icon="@mipmap/ic_launcher"
         android:usesCleartextTraffic="false">
         <activity
             android:name=".MainActivity"
