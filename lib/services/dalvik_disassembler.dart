@@ -196,7 +196,9 @@ class DalvikDisassembler {
         case '35c':
         case '45cc':
           final count = (first >> 12) & 15;
-          if (count > 5) throw const FormatException('Too many invoke registers');
+          if (count > 5) {
+            throw const FormatException('Too many invoke registers');
+          }
           final registers = [at(2) & 15, (at(2) >> 4) & 15,
             (at(2) >> 8) & 15, (at(2) >> 12) & 15, (first >> 8) & 15]
               .take(count).map(v).join(', ');
