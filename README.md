@@ -2,13 +2,14 @@
 
 An **Android-first Flutter project** for offline APK inspection and optional AI code explanations.
 
-**Current version:** 0.1.0 — foundation/MVP, not a full JADX or Apktool replacement.
+**Current version:** 0.2.0 — initial DEX/ELF browsers, not a full JADX or Apktool replacement.
 
 ## What works today
 
 - Modern Material 3 home, projects, analysis, tools and AI screens.
 - Android file picker import for APK/ZIP, and basic APKS/XAPK/APKM/AAB container listing.
-- Read-only local archive enumeration, file count, SHA-256, DEX inventory, native `.so` inventory, and limited framework indicators.
+- Read-only local archive enumeration, file count, SHA-256, DEX/native `.so` inventory, and limited framework indicators.
+- On-demand DEX class/method-name browser (DEX 035–040) with search; ELF32/ELF64 header inspection for native libraries.
 - Decode common fields from Android binary XML or plain XML manifests, including package/version/SDK/permission/component names.
 - Projects are stored in app-private local storage and can be reopened.
 - Opt-in AI chat with your own OpenRouter, OpenAI, DeepSeek or Groq API key; only text that you explicitly enter leaves the device.
@@ -54,8 +55,8 @@ For setup: [BUILD.md](docs/BUILD.md) · [Google Sign-In](docs/GOOGLE_SIGN_IN_SET
 ## Architecture
 
 Flutter drives UI, projects, local binary archive indexing and opt-in AI requests.
-The future Kotlin/native analyzer will handle DEX/Smali/ELF operations that
-cannot be safely reproduced as a Flutter-only interface. Optional heavyweight
+The current Dart readers inspect DEX indices and ELF headers. A future Kotlin/native
+analyzer may handle full Smali/ELF disassembly. Optional heavyweight
 desktop worker integrations are documented as future features.
 
 The analyzer never executes imported binary code and never sends an APK to an AI provider.

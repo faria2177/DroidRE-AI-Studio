@@ -4,6 +4,7 @@ import '../models/apk_report.dart';
 import '../services/ai_chat_service.dart';
 import '../services/google_account_service.dart';
 import '../services/studio_controller.dart';
+import 'binary_explorer_tabs.dart';
 
 class StudioShell extends StatefulWidget {
   const StudioShell({super.key, required this.controller});
@@ -542,20 +543,8 @@ class _InspectorScreenState extends State<InspectorScreen> {
                     ),
                   ],
                 ),
-                _SimpleListTab(
-                  heading: 'DEX inventory',
-                  description: 'DEX files are detected from the APK archive. '
-                      'Smali/class decompilation is planned for a native engine milestone.',
-                  icon: Icons.data_object,
-                  items: report.dexFiles,
-                ),
-                _SimpleListTab(
-                  heading: 'Native libraries',
-                  description: 'The ABI and .so filename are shown. '
-                      'ELF symbols and disassembly require a later native engine.',
-                  icon: Icons.memory,
-                  items: report.nativeLibraries,
-                ),
+                DexBrowserTab(report: report),
+                ElfBrowserTab(report: report),
               ],
             ),
           ),
@@ -664,37 +653,6 @@ class _SectionList extends StatelessWidget {
             ? [const ListTile(title: Text('None detected'))]
             : names.map((name) => ListTile(dense: true, title: SelectableText(name))).toList(),
       ),
-    );
-  }
-}
-
-class _SimpleListTab extends StatelessWidget {
-  const _SimpleListTab({
-    required this.heading,
-    required this.description,
-    required this.icon,
-    required this.items,
-  });
-  final String heading;
-  final String description;
-  final IconData icon;
-  final List<String> items;
-
-  @override
-  Widget build(BuildContext context) {
-    return ListView(
-      padding: const EdgeInsets.all(18),
-      children: [
-        Text(heading, style: Theme.of(context).textTheme.titleLarge),
-        const SizedBox(height: 6),
-        Text(description),
-        const SizedBox(height: 12),
-        if (items.isEmpty)
-          const ListTile(title: Text('No matching files found'))
-        else
-          for (final item in items)
-            Card(child: ListTile(leading: Icon(icon), title: SelectableText(item))),
-      ],
     );
   }
 }

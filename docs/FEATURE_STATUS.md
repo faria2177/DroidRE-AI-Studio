@@ -1,4 +1,4 @@
-# Feature status — 0.1.0
+# Feature status — 0.2.0
 
 Do not mistake a visible tool card for a completed reverse-engineering engine.
 
@@ -9,8 +9,8 @@ Do not mistake a visible tool card for a completed reverse-engineering engine.
 | XAPK/APKS/APKM/AAB | Limited | Lists outer ZIP contents only; split decoding not yet available |
 | SHA-256 / file inventory | Implemented | Archive entry list is capped at 10,000 for UI |
 | AndroidManifest | Limited | Common binary XML/text attributes, not full resource resolution |
-| DEX files | Inventory only | No class/method parsing, Smali or Java decompilation yet |
-| Native `.so` | Inventory only | No ELF symbol decoding/disassembly yet |
+| DEX files | Basic inspector | On-demand DEX 035–040 class/method names; 32 MiB limit, no Smali/Java decompilation |
+| Native `.so` | Basic ELF inspector | On-demand ELF32/ELF64 headers, architecture, byte order and counts; no symbols/disassembly |
 | Framework detection | Heuristic | Shows indicators, not certainty |
 | Project persistence | Implemented | Local copied artifacts and JSON index |
 | Google account button | Needs OAuth setup | Account chooser code exists; backend auth verification is future work |
@@ -23,10 +23,13 @@ Do not mistake a visible tool card for a completed reverse-engineering engine.
 
 ## Known limitations
 
-- This MVP provides **real APK archive and manifest inspection**, not full source recovery.
+- This milestone provides **real APK archive/manifest and bounded DEX/ELF header inspection**, not full source recovery.
 - Large archives are inspected with streaming ZIP structures, but extracting the
   manifest can still use up to 4 MiB. Files over 1 GiB are refused.
 - APK signature verification is **not yet implemented**.
+- DEX method names are decoded without signatures or instructions. Modified UTF-8
+  and unsupported DEX versions may not be fully decoded.
+- Individual DEX files over 32 MiB and native libraries over 80 MiB are rejected.
 - Some Android XML manifests refer to compiled resources that are not resolved yet.
 - No cloud upload of APKs. AI only receives user-entered prompt text.
 - Google account selection is not a substitute for server-side token verification.
