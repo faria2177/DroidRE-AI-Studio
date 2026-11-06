@@ -2,7 +2,7 @@
 
 An **Android-first Flutter project** for offline APK inspection and optional AI code explanations.
 
-**Current version:** 0.4.0 — read-only Dalvik opcode/operand disassembly, Android binary XML viewer and opt-in AI code explanations; not a full JADX or Apktool replacement.
+**Current version:** 0.5.0 — read-only Dalvik opcode/operand disassembly with DEX symbol resolution, indexed method cross-references, Android binary XML viewer and opt-in AI code explanations; not a full JADX or Apktool replacement.
 
 ## What works today
 
@@ -14,8 +14,10 @@ An **Android-first Flutter project** for offline APK inspection and optional AI 
 - Tap supported DEX methods to view prototype signatures, access flags and a **non-assemblable Smali-style code-unit preview** (with limited opcode hints).
 - Browse `res/` and `assets/` paths, inspect compiled `resources.arsc` package headers, preview small text/images and binary hex headers locally.
 - On-demand Dalvik instruction parsing for standard DEX 035–040 opcodes and formats, with branch offsets, register operands and payload boundaries; unsupported instructions are reported honestly.
+- Resolve DEX method, field, string, type and prototype references to human-readable descriptors when available. Tap outgoing method references to navigate to indexed declarations, or **Find callers** to scan other indexed methods in the same DEX (bounded, best effort).
 - Decode compiled Android XML resource element/attribute hierarchy (up to 2 MiB per XML); resource references are shown as IDs until full `resources.arsc` value resolution is available.
 - Tap **Explain with AI** on a selected DEX method or decoded XML to prefill the AI Studio prompt. Text is only sent after explicit consent and Send; no APK upload.
+- AI method prompts include resolved references and request evidence by instruction offset, behavior, risks, uncertainties and next targets; the user can review and edit everything before sending.
 - Decode common fields from Android binary XML or plain XML manifests, including package/version/SDK/permission/component names.
 - Projects are stored in app-private local storage and can be reopened.
 - Opt-in AI chat with your own OpenRouter, OpenAI, DeepSeek or Groq API key; only text that you explicitly enter leaves the device.

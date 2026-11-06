@@ -4,6 +4,7 @@ import 'dart:isolate';
 import 'package:flutter/foundation.dart';
 
 import 'dalvik_disassembler.dart';
+import 'dex_symbol_index.dart';
 import 'package_binary_reader.dart';
 
 @immutable
@@ -33,6 +34,8 @@ class DexMethodSummary {
     required this.registerCount,
     required this.instructionCount,
     required this.codeUnits,
+    this.methodIdIndex = -1,
+    this.ownerName = '',
   });
 
   final String name;
@@ -42,6 +45,8 @@ class DexMethodSummary {
   final int registerCount;
   final int instructionCount;
   final List<int> codeUnits;
+  final int methodIdIndex;
+  final String ownerName;
 
   String get smaliPreview {
     final modifiers = <String>[
@@ -116,6 +121,35 @@ class DexFileSummary {
   final List<DexClassSummary> classes;
 }
 
+@immutable
+class DexCodeReference {
+  const DexCodeReference({required this.kind, required this.index,
+    required this.label});
+
+  final String kind;
+  final int index;
+  final String label;
+}
+
+@immutable
+class DexMethodAnalysis {
+  const DexMethodAnalysis({required this.text, required this.references});
+
+  final String text;
+  final List<DexCodeReference> references;
+}
+
+@immutable
+class DexCallerResult {
+  const DexCallerResult({required this.callers, required this.scanned,
+    required this.skipped, required this.truncated});
+
+  final List<DexMethodSummary> callers;
+  final int scanned;
+  final int skipped;
+  final bool truncated;
+}
+
 /// Read-only DEX index reader with bounded raw code-unit previews.
 class DexInspector {
   const DexInspector._();
@@ -143,11 +177,25 @@ class DexInspector {
         method,
       ));
 
+  static Future<DexMethodAnalysis> analyzeEntryMethod(
+    String apkPath, String entryName, DexMethodSummary method,
+  ) => Isolate.run(() => analyzeMethodBytes(
+    PackageBinaryReader.read(apkPath: apkPath, entryName: entryName,
+      maxBytes: maxBytes), method));
+
+  static Future<DexCallerResult> findCallersEntry(
+    String apkPath, String entryName, List<DexClassSummary> classes,
+    int targetMethodId,
+  ) => Isolate.run(() => findCallersBytes(
+    PackageBinaryReader.read(apkPath: apkPath, entryName: entryName,
+      maxBytes: maxBytes), classes, targetMethodId));
+
   static String disassembleMethodBytes(
     Uint8List bytes,
     DexMethodSummary method,
-  ) {
-    if (method.codeOffset == 0) return method.smaliPreview;
+  ) => analyzeMethodBytes(bytes, method).text;
+
+  static List<int> _methodUnits(Uint8List bytes, DexMethodSummary method) {
     if (bytes.length < 112 || bytes.length > maxBytes ||
         bytes[0] != 100 || bytes[1] != 101 ||
         bytes[2] != 120 || bytes[3] != 10) {
@@ -163,18 +211,106 @@ class DexInspector {
       throw const FormatException('Method instruction array is invalid or too large');
     }
     final registers = data.getUint16(offset, Endian.little);
-    final units = List<int>.generate(
+    if (registers != method.registerCount) {
+      throw const FormatException('DEX method metadata has changed');
+    }
+    return List<int>.generate(
       count, (i) => data.getUint16(offset + 16 + i * 2, Endian.little),
       growable: false,
     );
-    final decoded = DalvikDisassembler.decode(units);
+  }
+
+  static DexMethodAnalysis analyzeMethodBytes(
+    Uint8List bytes, DexMethodSummary method,
+  ) {
+    if (method.codeOffset == 0) {
+      return DexMethodAnalysis(text: method.smaliPreview,
+          references: const []);
+    }
+    final units = _methodUnits(bytes, method);
+    final symbols = DexSymbolIndex(bytes);
+    final decoded = DalvikDisassembler.decode(units,
+      resolveReference: symbols.resolve);
+    final refs = <String, DexCodeReference>{};
+    for (final instruction in decoded.instructions) {
+      final name = instruction.mnemonic;
+      String? kind;
+      if (name.startsWith('invoke-') && !name.startsWith('invoke-custom')) {
+        kind = 'method';
+      } else if (name.startsWith('iget') || name.startsWith('iput') ||
+          name.startsWith('sget') || name.startsWith('sput')) {
+        kind = 'field';
+      } else if (name == 'const-string' || name == 'const-string/jumbo') {
+        kind = 'string';
+      } else if (name == 'new-instance' || name == 'const-class' ||
+          name == 'check-cast' || name == 'instance-of' ||
+          name == 'new-array' || name.startsWith('filled-new-array')) {
+        kind = 'type';
+      }
+      if (kind == null) continue;
+      final offset = instruction.offset;
+      final index = name == 'const-string/jumbo'
+          ? units[offset + 1] | (units[offset + 2] << 16)
+          : units[offset + 1];
+      final key = '$kind:$index';
+      refs.putIfAbsent(key, () => DexCodeReference(kind: kind!, index: index,
+          label: symbols.resolve(kind!, index)));
+      if (refs.length >= 150) break;
+    }
     final heading = method.smaliPreview.split('\n').first;
-    return '$heading\n'
-        '    .registers $registers\n'
+    final text = '$heading\n'
+        '    .registers ${method.registerCount}\n'
         '    # Read-only Dalvik disassembly, not verified/rebuildable Smali\n'
         '${decoded.instructions.map((item) => '    ${item.line}').join('\n')}\n'
         '${decoded.truncated ? '    # Instruction count capped for display\n' : ''}'
         '.end method';
+    return DexMethodAnalysis(text: text, references: refs.values.toList());
+  }
+
+  /// Scans the class browser's bounded method set for incoming calls.
+  /// The result explicitly reports incompleteness; it is not a full call graph.
+  static DexCallerResult findCallersBytes(
+    Uint8List bytes, List<DexClassSummary> classes, int targetMethodId,
+  ) {
+    final symbols = DexSymbolIndex(bytes);
+    if (targetMethodId < 0 || targetMethodId >= symbols.methodCount) {
+      throw const FormatException('Unknown target method ID');
+    }
+    final methods = classes.expand((item) => item.details).toList();
+    final matches = <DexMethodSummary>[];
+    var scanned = 0;
+    var skipped = 0;
+    var codeUnitsRead = 0;
+    var truncated = false;
+    for (final method in methods) {
+      if (method.codeOffset == 0) continue;
+      if (scanned >= 5000 || codeUnitsRead + method.instructionCount > 1000000 ||
+          matches.length >= 100) {
+        truncated = true;
+        break;
+      }
+      scanned++;
+      codeUnitsRead += method.instructionCount;
+      try {
+        final units = _methodUnits(bytes, method);
+        final decoded = DalvikDisassembler.decode(units,
+          maxInstructions: 50000);
+        if (decoded.truncated) {
+          skipped++;
+          continue;
+        }
+        final calls = decoded.instructions.any((item) {
+          if (!item.mnemonic.startsWith('invoke-') ||
+              item.mnemonic.startsWith('invoke-custom')) return false;
+          return units[item.offset + 1] == targetMethodId;
+        });
+        if (calls) matches.add(method);
+      } on FormatException {
+        skipped++;
+      }
+    }
+    return DexCallerResult(callers: matches, scanned: scanned,
+        skipped: skipped, truncated: truncated || methods.length > 20000);
   }
 
   static DexFileSummary inspectBytes(Uint8List input) {
@@ -318,7 +454,8 @@ class DexInspector {
       return '(${params.join()})${stringAt(u32(typesOff + resultType * 4))}';
     }
 
-    DexMethodSummary detail(int index, int flags, int codeOffset) {
+    DexMethodSummary detail(int index, int flags, int codeOffset,
+        String ownerName) {
       var registers = 0;
       var count = 0;
       final codeUnits = <int>[];
@@ -339,6 +476,8 @@ class DexInspector {
         registerCount: registers,
         instructionCount: count,
         codeUnits: codeUnits,
+        methodIdIndex: index,
+        ownerName: ownerName,
       );
     }
 
@@ -379,7 +518,7 @@ class DexInspector {
             if (methods.length < 200) {
               methods.add(methodName(index));
               if (detailsRemaining > 0) {
-                details.add(detail(index, accessFlags, codeOff));
+                details.add(detail(index, accessFlags, codeOff, name));
                 detailsRemaining--;
               }
             }

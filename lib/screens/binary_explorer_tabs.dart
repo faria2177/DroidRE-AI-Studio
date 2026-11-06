@@ -20,12 +20,58 @@ class _DexBrowserTabState extends State<DexBrowserTab> {
   String query = '';
   Future<DexFileSummary>? task;
 
-  void _showMethod(DexMethodSummary method, String dexFile) {
-    final task = DexInspector.disassembleEntryMethod(
+  void _showCallers(DexMethodSummary method, String dexFile,
+      DexFileSummary summary) {
+    final task = DexInspector.findCallersEntry(widget.report.localPath,
+        dexFile, summary.classes, method.methodIdIndex);
+    showDialog<void>(context: context, builder: (context) =>
+      AlertDialog(
+        title: Text('Callers of ${method.name}'),
+        content: SizedBox(width: 620, child: FutureBuilder<DexCallerResult>(
+          future: task,
+          builder: (context, snapshot) {
+            if (snapshot.hasError) return Text('XREF scan failed: ${snapshot.error}');
+            if (!snapshot.hasData) return const LinearProgressIndicator();
+            final result = snapshot.data!;
+            return SizedBox(height: 410, child: Column(children: [
+              Text('Scanned ${result.scanned} indexed methods; '
+                  '${result.skipped} methods could not be fully decoded. '
+                  '${result.truncated ? 'Results are incomplete.' : 'Index-based scan only.'}'),
+              const SizedBox(height: 12),
+              Expanded(child: result.callers.isEmpty
+                  ? const Center(child: Text('No callers found in scanned methods'))
+                  : ListView.builder(
+                      itemCount: result.callers.length,
+                      itemBuilder: (context, index) {
+                        final caller = result.callers[index];
+                        return ListTile(
+                          title: Text(caller.name),
+                          subtitle: Text('${caller.ownerName}\n${caller.prototype}'),
+                          isThreeLine: true,
+                          trailing: const Icon(Icons.open_in_new),
+                          onTap: () {
+                            Navigator.pop(context);
+                            _showMethod(caller, dexFile, summary);
+                          },
+                        );
+                      },
+                    )),
+            ]));
+          },
+        )),
+        actions: [TextButton(onPressed: () => Navigator.pop(context),
+          child: const Text('Close'))],
+      ));
+  }
+
+  void _showMethod(DexMethodSummary method, String dexFile,
+      DexFileSummary summary) {
+    final task = DexInspector.analyzeEntryMethod(
       widget.report.localPath, dexFile, method);
     showDialog<void>(context: context, builder: (context) =>
-      FutureBuilder<String>(future: task, builder: (context, snapshot) {
-        final code = snapshot.data ?? method.smaliPreview;
+      FutureBuilder<DexMethodAnalysis>(future: task, builder: (context, snapshot) {
+        final code = snapshot.data?.text ?? method.smaliPreview;
+        final refs = snapshot.data?.references ?? const <DexCodeReference>[];
         return AlertDialog(
           title: Text('${method.name}${method.prototype}',
             maxLines: 2, overflow: TextOverflow.ellipsis),
@@ -48,6 +94,44 @@ class _DexBrowserTabState extends State<DexBrowserTab> {
                 const SizedBox(height: 10),
                 SelectableText(code,
                   style: const TextStyle(fontFamily: 'monospace', fontSize: 12)),
+                if (refs.isNotEmpty) ...[
+                  const SizedBox(height: 14),
+                  Text('Referenced symbols (${refs.length})',
+                      style: Theme.of(context).textTheme.titleMedium),
+                  const Text('Tap a method to open its declaration when indexed '
+                      'in the selected DEX. Other references are read-only.'),
+                  for (final reference in refs.take(40))
+                    ListTile(
+                      dense: true,
+                      title: Text(reference.label, maxLines: 2,
+                          overflow: TextOverflow.ellipsis),
+                      subtitle: Text('${reference.kind} #${reference.index}'),
+                      trailing: reference.kind == 'method'
+                          ? const Icon(Icons.arrow_forward) : null,
+                      onTap: reference.kind != 'method' ? null : () {
+                        DexMethodSummary? target;
+                        for (final klass in summary.classes) {
+                          for (final candidate in klass.details) {
+                            if (candidate.methodIdIndex == reference.index) {
+                              target = candidate;
+                              break;
+                            }
+                          }
+                          if (target != null) break;
+                        }
+                        if (target == null) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(content: Text('Method body is not indexed '
+                                'in this DEX; the symbol is still resolved above.')));
+                          return;
+                        }
+                        Navigator.pop(context);
+                        _showMethod(target, dexFile, summary);
+                      },
+                    ),
+                  if (refs.length > 40)
+                    const Text('Showing the first 40 referenced symbols'),
+                ],
               ],
             ),
           )),
@@ -66,14 +150,28 @@ class _DexBrowserTabState extends State<DexBrowserTab> {
                   Navigator.pop(context);
                   widget.onExplainCode!(
                     'Analyze this Dalvik method '
-                    '${method.name}${method.prototype}: explain the '
-                    'behavior, API usage and possible security concerns. '
-                    'Distinguish evidence from guesses.\n\n'
+                    '${method.ownerName}.${method.name}${method.prototype}. '
+                    'Structure the answer as: (1) behavior summary, '
+                    '(2) step-by-step evidence with instruction offsets, '
+                    '(3) called methods and accessed fields, '
+                    '(4) possible risks, (5) uncertainties and suggested '
+                    'next inspection targets. Do not invent source code.\n\n'
+                    'Resolved references:\n'
+                    '${refs.take(50).map((ref) => '${ref.kind}: ${ref.label}').join('\n')}\n\n'
                     '${code.length > 18000 ? code.substring(0, 18000) : code}',
                   );
                 },
                 icon: const Icon(Icons.auto_awesome),
                 label: const Text('Explain with AI'),
+              ),
+            if (method.methodIdIndex >= 0)
+              TextButton.icon(
+                onPressed: () {
+                  Navigator.pop(context);
+                  _showCallers(method, dexFile, summary);
+                },
+                icon: const Icon(Icons.call_received),
+                label: const Text('Find callers'),
               ),
             TextButton(onPressed: () => Navigator.pop(context),
               child: const Text('Close')),
@@ -186,7 +284,7 @@ class _DexBrowserTabState extends State<DexBrowserTab> {
                             title: Text(method.name),
                             subtitle: Text(method.prototype),
                             trailing: const Icon(Icons.code),
-                            onTap: () => _showMethod(method, selectedFile),
+                            onTap: () => _showMethod(method, selectedFile, summary),
                           ),
                         for (final name in item.methods.skip(item.details.length))
                           ListTile(dense: true, title: Text(name),

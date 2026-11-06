@@ -1,4 +1,4 @@
-# Feature status — 0.4.0
+# Feature status — 0.5.0
 
 Do not mistake a visible tool card for a completed reverse-engineering engine.
 
@@ -11,9 +11,11 @@ Do not mistake a visible tool card for a completed reverse-engineering engine.
 | AndroidManifest | Limited | Common binary XML/text attributes, not full resource resolution |
 | DEX files | Basic inspector + method details | DEX 035–040 class/method names, prototypes, flags, registers and first 64 raw code units as fallback |
 | Dalvik instructions | Implemented for standard opcodes | On-demand DEX 035–040 opcode, operands, register/branch decoding and switch/array payload boundaries; not verified Smali |
+| DEX symbols | Partial resolution | Resolve string/type/prototype/method/field identifiers to descriptors; call-site and method-handle internals remain symbolic |
+| Cross-reference navigation | Bounded method XREFs | Browse outgoing referenced methods and scan indexed method bodies for incoming callers; not a complete whole-APK call graph |
 | Smali preview | Read-only | Code offset/descriptor and decoded instructions; not Java reconstruction or round-trip Smali assembly |
 | APK Resources | XML viewer | `res/`, `assets/`, `resources.arsc` package names, text/image/hex previews and binary XML hierarchy |
-| AI code explanations | Opt-in integrated | Select method/XML → review prefilled prompt → consent → send to chosen provider; no binary APK upload |
+| AI code explanations | Opt-in integrated | Method prompts include resolved symbols and instruction-offset evidence requests; review/edit prompt → consent → send to chosen provider; no binary APK upload |
 | Native `.so` | Basic ELF inspector | On-demand ELF32/ELF64 headers, architecture, byte order and counts; no symbols/disassembly |
 | Framework detection | Heuristic | Shows indicators, not certainty |
 | Project persistence | Implemented | Local copied artifacts and JSON index |
@@ -39,6 +41,7 @@ Do not mistake a visible tool card for a completed reverse-engineering engine.
   instructions. Reserved, optimized/odex and unknown opcodes stop disassembly
   without guessing instruction boundaries. No semantic type/control-flow verification.
 - Method detail previews in the class list are bounded to 20,000 per DEX file.
+- Incoming XREF scans inspect at most 5,000 indexed methods / 1,000,000 code units and list at most 100 matches. Unsupported Dalvik code is skipped and a count shown; references outside the selected DEX, missing or unindexed methods, and virtual dispatch remain unresolved.
 - Resource table parsing is header-only (package names/counts); resource values,
   IDs and decoded drawables are not yet resolved. Binary XML element and
   attribute names are decoded, but IDs and complex typed values remain symbolic.

@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:droidre_ai_studio/services/dex_inspector.dart';
+import 'package:droidre_ai_studio/services/dex_symbol_index.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 Uint8List makeDex() {
@@ -80,5 +81,43 @@ void main() {
     final bytes = makeDex();
     ByteData.sublistView(bytes).setUint32(292, 100000, Endian.little);
     expect(() => DexInspector.inspectBytes(bytes), throwsFormatException);
+  });
+
+  test('resolves DEX string, type, prototype and method pool symbols', () {
+    final symbols = DexSymbolIndex(makeDex());
+    expect(symbols.resolve('string', 1), '"run"');
+    expect(symbols.resolve('type', 0), 'Lcom/demo/Example;');
+    expect(symbols.resolve('proto', 0), '()Lcom/demo/Example;');
+    expect(symbols.resolve('method', 0),
+        'Lcom/demo/Example;->run()Lcom/demo/Example;');
+    expect(symbols.resolve('field', 99), 'field@99');
+  });
+
+  test('shows resolved invoke symbols and navigable incoming XREFs', () {
+    final bytes = makeDex();
+    final data = ByteData.sublistView(bytes);
+    data.setUint32(292, 4, Endian.little);
+    for (final (i, word) in <int>[0x1071, 0, 0, 0x000e].indexed) {
+      data.setUint16(296 + i * 2, word, Endian.little);
+    }
+    final summary = DexInspector.inspectBytes(bytes);
+    final method = summary.classes.single.details.single;
+    expect(method.methodIdIndex, 0);
+    expect(method.ownerName, 'com.demo.Example');
+    final analysis = DexInspector.analyzeMethodBytes(bytes, method);
+    expect(analysis.text,
+        contains('invoke-static {v0}, Lcom/demo/Example;->run()Lcom/demo/Example;'));
+    expect(analysis.references.single.kind, 'method');
+    expect(analysis.references.single.index, 0);
+    final xrefs = DexInspector.findCallersBytes(bytes, summary.classes, 0);
+    expect(xrefs.callers.single.methodIdIndex, 0);
+    expect(xrefs.scanned, 1);
+    expect(xrefs.truncated, false);
+  });
+
+  test('rejects malformed symbol offsets without crashing', () {
+    final bytes = makeDex();
+    ByteData.sublistView(bytes).setUint32(92, 99999, Endian.little);
+    expect(() => DexSymbolIndex(bytes), throwsFormatException);
   });
 }
