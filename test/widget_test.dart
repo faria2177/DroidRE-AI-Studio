@@ -20,7 +20,6 @@ void main() {
     );
 
     expect(find.text('Import an APK or bundle'), findsOneWidget);
-    expect(find.text('No projects yet'), findsOneWidget);
     expect(
       find.byWidgetPredicate((widget) {
         if (widget is! Image) return false;
@@ -30,6 +29,8 @@ void main() {
       }),
       findsOneWidget,
     );
+    await tester.scrollUntilVisible(find.text('No projects yet'), 180);
+    expect(find.text('No projects yet'), findsOneWidget);
     controller.dispose();
   });
 }
