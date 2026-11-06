@@ -4,9 +4,11 @@ import '../models/apk_report.dart';
 import '../services/resource_inspector.dart';
 
 class ResourceExplorerTab extends StatefulWidget {
-  const ResourceExplorerTab({super.key, required this.report});
+  const ResourceExplorerTab({super.key, required this.report,
+      this.onExplainCode});
 
   final ApkReport report;
+  final ValueChanged<String>? onExplainCode;
 
   @override
   State<ResourceExplorerTab> createState() => _ResourceExplorerTabState();
@@ -27,6 +29,7 @@ class _ResourceExplorerTabState extends State<ResourceExplorerTab> {
 
   String _category(String name) {
     if (name == 'resources.arsc') return 'Compiled table';
+    if (name == 'AndroidManifest.xml') return 'Manifest';
     if (name.startsWith('assets/')) return 'assets';
     final segments = name.split('/');
     return segments.length > 1 ? segments[1] : 'Other';
@@ -83,6 +86,37 @@ class _ResourceExplorerTabState extends State<ResourceExplorerTab> {
                     SelectableText(preview.textContent!,
                       style: const TextStyle(fontFamily: 'monospace')),
                   ],
+                  if (preview.decodedXml != null) ...[
+                    const SizedBox(height: 8),
+                    Text('Decoded Android Binary XML: '
+                        '${preview.xmlElementCount} elements, '
+                        '${preview.xmlAttributeCount} attributes'),
+                    const SizedBox(height: 8),
+                    SelectableText(preview.decodedXml!.length > 50000
+                        ? '${preview.decodedXml!.substring(0, 50000)}\n'
+                          '[Viewer truncated at 50,000 characters]'
+                        : preview.decodedXml!,
+                      style: const TextStyle(fontFamily: 'monospace', fontSize: 12)),
+                    if (widget.onExplainCode != null)
+                      OutlinedButton.icon(
+                        onPressed: () {
+                          Navigator.pop(context);
+                          widget.onExplainCode!(
+                            'Explain this Android XML resource ($name), its UI '
+                            'hierarchy, attributes and potential issues. '
+                            'Only infer from this snippet:\n\n'
+                            '${preview.decodedXml!.length > 18000
+                                ? preview.decodedXml!.substring(0, 18000)
+                                : preview.decodedXml!}',
+                          );
+                        },
+                        icon: const Icon(Icons.auto_awesome),
+                        label: const Text('Explain XML with AI'),
+                      ),
+                  ],
+                  if (preview.xmlDecodeError != null)
+                    Text('Binary XML could not be decoded: '
+                        '${preview.xmlDecodeError}'),
                   const SizedBox(height: 8),
                   const Text('Hex preview (first 64 bytes):'),
                   SelectableText(preview.hexHeader,
@@ -105,6 +139,7 @@ class _ResourceExplorerTabState extends State<ResourceExplorerTab> {
     final entries = widget.report.entries.where((entry) => entry.isFile &&
         (entry.name.startsWith('res/') ||
             entry.name.startsWith('assets/') ||
+            entry.name == 'AndroidManifest.xml' ||
             entry.name == 'resources.arsc')).toList();
     final categoryNames = entries.map((entry) => _category(entry.name))
         .toSet().toList()..sort();
@@ -139,8 +174,8 @@ class _ResourceExplorerTabState extends State<ResourceExplorerTab> {
             onChanged: (value) => setState(() => category = value ?? 'All'),
           ),
           const SizedBox(height: 6),
-          const Text('Tap a file to inspect its header, text, or supported image. '
-            'Binary XML and resource values are not yet decompiled.'),
+          const Text('Tap a file to inspect text, images or the decoded '
+              'Android Binary XML tree. Resource ID values are not yet resolved.'),
         ]),
       ),
       Expanded(child: ListView.builder(

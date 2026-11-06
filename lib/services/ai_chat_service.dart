@@ -72,8 +72,11 @@ class AiChatService {
               {
                 'role': 'system',
                 'content':
-                    'You are an Android code analysis assistant. '
-                    'Do not invent evidence or claim access to files not provided.',
+                    'You are an Android reverse engineering code analyst. '
+                    'Explain observed Dalvik instructions, Android XML attributes, '
+                    'API usage and potential risks with short evidence-based reasoning. '
+                    'Separate evidence from inference, identify uncertainty, and '
+                    'do not claim access to files not explicitly included in the prompt.',
               },
               {'role': 'user', 'content': prompt.trim()},
             ],

@@ -18,6 +18,14 @@ class StudioShell extends StatefulWidget {
 
 class _StudioShellState extends State<StudioShell> {
   int _tab = 0;
+  String _aiDraft = '';
+
+  void _analyzeSelectedCode(String draft) {
+    setState(() {
+      _aiDraft = draft;
+      _tab = 3;
+    });
+  }
 
   static const _titles = [
     'Home',
@@ -64,8 +72,14 @@ class _StudioShellState extends State<StudioShell> {
             onImport: _import,
             onOpen: () => setState(() => _tab = 2),
           ),
-          InspectorScreen(report: widget.controller.active),
-          const AiStudioScreen(),
+          InspectorScreen(
+            report: widget.controller.active,
+            onExplainCode: _analyzeSelectedCode,
+          ),
+          AiStudioScreen(
+            key: ValueKey(_aiDraft),
+            initialPrompt: _aiDraft,
+          ),
           ToolsScreen(onImport: _import, onAnalyze: () => setState(() => _tab = 2)),
         ];
         return Scaffold(
@@ -458,8 +472,10 @@ String _formatSize(int bytes) {
 }
 
 class InspectorScreen extends StatefulWidget {
-  const InspectorScreen({super.key, required this.report});
+  const InspectorScreen({super.key, required this.report,
+      this.onExplainCode});
   final ApkReport? report;
+  final ValueChanged<String>? onExplainCode;
 
   @override
   State<InspectorScreen> createState() => _InspectorScreenState();
@@ -555,9 +571,11 @@ class _InspectorScreenState extends State<InspectorScreen> {
                     ),
                   ],
                 ),
-                DexBrowserTab(report: report),
+                DexBrowserTab(report: report,
+                    onExplainCode: widget.onExplainCode),
                 ElfBrowserTab(report: report),
-                ResourceExplorerTab(report: report),
+                ResourceExplorerTab(report: report,
+                    onExplainCode: widget.onExplainCode),
               ],
             ),
           ),
@@ -671,7 +689,9 @@ class _SectionList extends StatelessWidget {
 }
 
 class AiStudioScreen extends StatefulWidget {
-  const AiStudioScreen({super.key});
+  const AiStudioScreen({super.key, this.initialPrompt = ''});
+
+  final String initialPrompt;
 
   @override
   State<AiStudioScreen> createState() => _AiStudioScreenState();
@@ -680,11 +700,18 @@ class AiStudioScreen extends StatefulWidget {
 class _AiStudioScreenState extends State<AiStudioScreen> {
   final keyController = TextEditingController();
   final modelController = TextEditingController(text: aiEndpoints.first.defaultModel);
-  final promptController = TextEditingController();
+  late final TextEditingController promptController;
   final service = AiChatService();
   AiEndpoint endpoint = aiEndpoints.first;
   String output = '';
   bool busy = false;
+  bool consentToSendCode = false;
+
+  @override
+  void initState() {
+    super.initState();
+    promptController = TextEditingController(text: widget.initialPrompt);
+  }
 
   @override
   void dispose() {
@@ -696,7 +723,7 @@ class _AiStudioScreenState extends State<AiStudioScreen> {
   }
 
   Future<void> _send() async {
-    if (busy) return;
+    if (busy || (widget.initialPrompt.isNotEmpty && !consentToSendCode)) return;
     setState(() {
       busy = true;
       output = '';
@@ -723,8 +750,8 @@ class _AiStudioScreenState extends State<AiStudioScreen> {
       children: [
         Text('AI Code Assistant', style: Theme.of(context).textTheme.headlineSmall),
         const SizedBox(height: 6),
-        const Text('Bring your own API key. Your APK is never uploaded by this screen. '
-            'Only the prompt you explicitly type is sent to the selected provider.'),
+        const Text('Bring your own API key. Whole APK files are never uploaded '
+            'by this screen. Only the visible prompt is sent when you press Send.'),
         const SizedBox(height: 18),
         DropdownButtonFormField<AiEndpoint>(
           initialValue: endpoint,
@@ -777,9 +804,21 @@ class _AiStudioScreenState extends State<AiStudioScreen> {
             border: OutlineInputBorder(),
           ),
         ),
+        if (widget.initialPrompt.isNotEmpty)
+          CheckboxListTile(
+            value: consentToSendCode,
+            title: const Text('I reviewed the extracted code and agree to '
+                'send this text to the selected AI provider'),
+            subtitle: const Text('Check for embedded secrets first. '
+                'The APK file itself stays on this device.'),
+            onChanged: busy ? null : (value) => setState(() =>
+                consentToSendCode = value ?? false),
+          ),
         const SizedBox(height: 14),
         FilledButton.icon(
-          onPressed: busy ? null : _send,
+          onPressed: busy ||
+              (widget.initialPrompt.isNotEmpty && !consentToSendCode)
+              ? null : _send,
           icon: busy
               ? const SizedBox(
                   width: 18,

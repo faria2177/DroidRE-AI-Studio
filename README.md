@@ -2,7 +2,7 @@
 
 An **Android-first Flutter project** for offline APK inspection and optional AI code explanations.
 
-**Current version:** 0.3.1 — new DroidRE branding, DEX method details, raw instruction previews and resource browser; not a full JADX or Apktool replacement.
+**Current version:** 0.4.0 — read-only Dalvik opcode/operand disassembly, Android binary XML viewer and opt-in AI code explanations; not a full JADX or Apktool replacement.
 
 ## What works today
 
@@ -13,6 +13,9 @@ An **Android-first Flutter project** for offline APK inspection and optional AI 
 - On-demand DEX class/method-name browser (DEX 035–040) with search; ELF32/ELF64 header inspection for native libraries.
 - Tap supported DEX methods to view prototype signatures, access flags and a **non-assemblable Smali-style code-unit preview** (with limited opcode hints).
 - Browse `res/` and `assets/` paths, inspect compiled `resources.arsc` package headers, preview small text/images and binary hex headers locally.
+- On-demand Dalvik instruction parsing for standard DEX 035–040 opcodes and formats, with branch offsets, register operands and payload boundaries; unsupported instructions are reported honestly.
+- Decode compiled Android XML resource element/attribute hierarchy (up to 2 MiB per XML); resource references are shown as IDs until full `resources.arsc` value resolution is available.
+- Tap **Explain with AI** on a selected DEX method or decoded XML to prefill the AI Studio prompt. Text is only sent after explicit consent and Send; no APK upload.
 - Decode common fields from Android binary XML or plain XML manifests, including package/version/SDK/permission/component names.
 - Projects are stored in app-private local storage and can be reopened.
 - Opt-in AI chat with your own OpenRouter, OpenAI, DeepSeek or Groq API key; only text that you explicitly enter leaves the device.
@@ -58,8 +61,8 @@ For setup: [BUILD.md](docs/BUILD.md) · [Google Sign-In](docs/GOOGLE_SIGN_IN_SET
 ## Architecture
 
 Flutter drives UI, projects, local binary archive indexing and opt-in AI requests.
-The current Dart readers inspect DEX indices, bounded method code units,
-ELF headers and top-level Android resource tables. A future Kotlin/native
+The current Dart readers inspect DEX indices, bounded Dalvik instruction sequences,
+ELF headers, Android compiled XML and top-level resource tables. A future Kotlin/native
 analyzer may handle full Smali/ELF disassembly. Optional heavyweight
 desktop worker integrations are documented as future features.
 

@@ -3,6 +3,7 @@ import 'dart:isolate';
 
 import 'package:flutter/foundation.dart';
 
+import 'android_binary_xml_decoder.dart';
 import 'package_binary_reader.dart';
 
 @immutable
@@ -25,12 +26,20 @@ class ResourcePreview {
     required this.bytes,
     required this.hexHeader,
     this.textContent,
+    this.decodedXml,
+    this.xmlElementCount = 0,
+    this.xmlAttributeCount = 0,
+    this.xmlDecodeError,
   });
 
   final String name;
   final Uint8List bytes;
   final String hexHeader;
   final String? textContent;
+  final String? decodedXml;
+  final int xmlElementCount;
+  final int xmlAttributeCount;
+  final String? xmlDecodeError;
 
   bool get isImage => RegExp(r'\.(png|jpg|jpeg|webp|gif)$',
       caseSensitive: false).hasMatch(name);
@@ -65,6 +74,16 @@ class ResourceInspector {
       caseSensitive: false).hasMatch(name);
     // Binary XML starts with 0x00080003, not UTF-8 markup.
     final looksBinary = bytes.take(64).any((value) => value == 0);
+    DecodedAndroidXml? decoded;
+    String? decodeError;
+    if (name.toLowerCase().endsWith('.xml') &&
+        bytes.length >= 8 && bytes[0] == 3 && bytes[1] == 0) {
+      try {
+        decoded = AndroidBinaryXmlDecoder.decode(bytes);
+      } on FormatException catch (error) {
+        decodeError = error.message;
+      }
+    }
     return ResourcePreview(
       name: name,
       bytes: bytes,
@@ -72,6 +91,10 @@ class ResourceInspector {
       textContent: isTextFile && !looksBinary
           ? utf8.decode(bytes.take(4096).toList(), allowMalformed: true)
           : null,
+      decodedXml: decoded?.xml,
+      xmlElementCount: decoded?.elements ?? 0,
+      xmlAttributeCount: decoded?.attributes ?? 0,
+      xmlDecodeError: decodeError,
     );
   }
 

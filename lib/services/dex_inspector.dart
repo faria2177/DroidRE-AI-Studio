@@ -3,6 +3,7 @@ import 'dart:isolate';
 
 import 'package:flutter/foundation.dart';
 
+import 'dalvik_disassembler.dart';
 import 'package_binary_reader.dart';
 
 @immutable
@@ -127,6 +128,54 @@ class DexInspector {
             entryName: entryName,
             maxBytes: maxBytes,
           )));
+
+  /// Decodes the selected method on demand; other methods stay lazy.
+  static Future<String> disassembleEntryMethod(
+    String apkPath,
+    String entryName,
+    DexMethodSummary method,
+  ) => Isolate.run(() => disassembleMethodBytes(
+        PackageBinaryReader.read(
+          apkPath: apkPath,
+          entryName: entryName,
+          maxBytes: maxBytes,
+        ),
+        method,
+      ));
+
+  static String disassembleMethodBytes(
+    Uint8List bytes,
+    DexMethodSummary method,
+  ) {
+    if (method.codeOffset == 0) return method.smaliPreview;
+    if (bytes.length < 112 || bytes.length > maxBytes ||
+        bytes[0] != 100 || bytes[1] != 101 ||
+        bytes[2] != 120 || bytes[3] != 10) {
+      throw const FormatException('Selected file is not a standard DEX');
+    }
+    final offset = method.codeOffset;
+    if (offset < 0 || offset > bytes.length - 16) {
+      throw const FormatException('Method code offset is outside DEX');
+    }
+    final data = ByteData.sublistView(bytes);
+    final count = data.getUint32(offset + 12, Endian.little);
+    if (count > 100000 || count > (bytes.length - offset - 16) ~/ 2) {
+      throw const FormatException('Method instruction array is invalid or too large');
+    }
+    final registers = data.getUint16(offset, Endian.little);
+    final units = List<int>.generate(
+      count, (i) => data.getUint16(offset + 16 + i * 2, Endian.little),
+      growable: false,
+    );
+    final decoded = DalvikDisassembler.decode(units);
+    final heading = method.smaliPreview.split('\n').first;
+    return '$heading\n'
+        '    .registers $registers\n'
+        '    # Read-only Dalvik disassembly, not verified/rebuildable Smali\n'
+        '${decoded.instructions.map((item) => '    ${item.line}').join('\n')}\n'
+        '${decoded.truncated ? '    # Instruction count capped for display\n' : ''}'
+        '.end method';
+  }
 
   static DexFileSummary inspectBytes(Uint8List input) {
     if (input.length < 112 || input.length > maxBytes) {

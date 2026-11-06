@@ -59,6 +59,8 @@ void main() {
     expect(detail.codeOffset, 280);
     expect(detail.smaliPreview, contains('return-void'));
     expect(detail.smaliPreview, contains('.registers 2'));
+    final decoded = DexInspector.disassembleMethodBytes(makeDex(), detail);
+    expect(decoded, contains('0000: return-void'));
   });
 
   test('rejects corrupt DEX table offset', () {

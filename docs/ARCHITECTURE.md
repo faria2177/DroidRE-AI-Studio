@@ -21,9 +21,11 @@ flowchart TD
 - `lib/services/apk_analyzer.dart`: ZIP metadata, SHA-256, DEX/native inventory.
 - `lib/services/android_manifest_parser.dart`: bounded Android binary XML parser.
 - `lib/services/package_binary_reader.dart`: user-selected, bounded binary member extraction.
-- `lib/services/dex_inspector.dart`: DEX 035–040 header/class/method/prototype reader, bounded code-unit previews.
+- `lib/services/dex_inspector.dart`: DEX 035–040 header/class/method/prototype reader, on-demand instruction decoder.
+- `lib/services/dalvik_disassembler.dart`: bounded Dalvik opcode/operand decoder with explicit rejection of unknown formats.
 - `lib/services/elf_inspector.dart`: ELF32/ELF64 metadata reader.
 - `lib/services/resource_inspector.dart`: `resources.arsc` package metadata and bounded asset previews.
+- `lib/services/android_binary_xml_decoder.dart`: bounded Android binary XML element/attribute hierarchy viewer.
 - `lib/screens/binary_explorer_tabs.dart`: on-demand inspectors with class search.
 - `lib/screens/resource_explorer_tab.dart`: path/category search and resource detail viewer.
 - `lib/services/ai_chat_service.dart`: opt-in chat calls; no automatic binary context.
