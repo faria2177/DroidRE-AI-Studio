@@ -2,7 +2,7 @@
 
 An **Android-first Flutter project** for offline APK inspection and optional AI code explanations.
 
-**Current version:** 0.5.0 — read-only Dalvik opcode/operand disassembly with DEX symbol resolution, indexed method cross-references, Android binary XML viewer and opt-in AI code explanations; not a full JADX or Apktool replacement.
+**Current version:** 0.6.0 — indexed Multi-DEX static call graph, offset-preserving Java-like pseudocode, Google OAuth configuration in Settings, Dalvik disassembly, binary XML and opt-in AI review; not a full JADX or Apktool replacement.
 
 ## What works today
 
@@ -15,12 +15,15 @@ An **Android-first Flutter project** for offline APK inspection and optional AI 
 - Browse `res/` and `assets/` paths, inspect compiled `resources.arsc` package headers, preview small text/images and binary hex headers locally.
 - On-demand Dalvik instruction parsing for standard DEX 035–040 opcodes and formats, with branch offsets, register operands and payload boundaries; unsupported instructions are reported honestly.
 - Resolve DEX method, field, string, type and prototype references to human-readable descriptors when available. Tap outgoing method references to navigate to indexed declarations, or **Find callers** to scan other indexed methods in the same DEX (bounded, best effort).
+- **Call graph** scans up to 24 DEX entries by method signature, finding direct callers/callees and two-hop relationships across `classes.dex`/`classes2.dex` etc., with limits and incomplete-scan warnings.
+- **View Java-like pseudocode** provides a read-only, explicitly approximate statement view with Dalvik offsets; it does not recover original Java source.
 - Decode compiled Android XML resource element/attribute hierarchy (up to 2 MiB per XML); resource references are shown as IDs until full `resources.arsc` value resolution is available.
 - Tap **Explain with AI** on a selected DEX method or decoded XML to prefill the AI Studio prompt. Text is only sent after explicit consent and Send; no APK upload.
 - AI method prompts include resolved references and request evidence by instruction offset, behavior, risks, uncertainties and next targets; the user can review and edit everything before sending.
 - Decode common fields from Android binary XML or plain XML manifests, including package/version/SDK/permission/component names.
 - Projects are stored in app-private local storage and can be reopened.
 - Opt-in AI chat with your own OpenRouter, OpenAI, DeepSeek or Groq API key; only text that you explicitly enter leaves the device.
+- Google account Settings accepts a Web OAuth client ID directly on the device and supports interactive sign-in/session restore **when** a matching Google Cloud Android OAuth registration and signing certificate fingerprint are configured. No Gmail inbox permission is requested.
 - Google account button and OAuth integration path. The button requires owner-provided OAuth configuration.
 - CI, unit tests and Android debug APK workflow.
 

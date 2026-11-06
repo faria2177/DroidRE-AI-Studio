@@ -1,4 +1,4 @@
-# Feature status — 0.5.0
+# Feature status — 0.6.0
 
 Do not mistake a visible tool card for a completed reverse-engineering engine.
 
@@ -13,13 +13,15 @@ Do not mistake a visible tool card for a completed reverse-engineering engine.
 | Dalvik instructions | Implemented for standard opcodes | On-demand DEX 035–040 opcode, operands, register/branch decoding and switch/array payload boundaries; not verified Smali |
 | DEX symbols | Partial resolution | Resolve string/type/prototype/method/field identifiers to descriptors; call-site and method-handle internals remain symbolic |
 | Cross-reference navigation | Bounded method XREFs | Browse outgoing referenced methods and scan indexed method bodies for incoming callers; not a complete whole-APK call graph |
+| Multi-DEX call graph | Static, bounded | Scans up to 24 DEX files, 6,000 method bodies and 1.5 million code units; matches method signatures across DEX files and displays direct and two-hop calls |
+| Java-like pseudocode | Approximate viewer | Converts common Dalvik instructions into Java-like annotated statements with original PC; not a real Java decompiler |
 | Smali preview | Read-only | Code offset/descriptor and decoded instructions; not Java reconstruction or round-trip Smali assembly |
 | APK Resources | XML viewer | `res/`, `assets/`, `resources.arsc` package names, text/image/hex previews and binary XML hierarchy |
 | AI code explanations | Opt-in integrated | Method prompts include resolved symbols and instruction-offset evidence requests; review/edit prompt → consent → send to chosen provider; no binary APK upload |
 | Native `.so` | Basic ELF inspector | On-demand ELF32/ELF64 headers, architecture, byte order and counts; no symbols/disassembly |
 | Framework detection | Heuristic | Shows indicators, not certainty |
 | Project persistence | Implemented | Local copied artifacts and JSON index |
-| Google account button | Needs OAuth setup | Account chooser code exists; backend auth verification is future work |
+| Google account button | Requires Google OAuth registration | Configurable Web Client ID in Settings, native account selection/restore; package name + APK signing SHA must be registered, backend auth verification is future work |
 | OpenRouter/OpenAI/DeepSeek/Groq AI | Working API adapter design | Requires a valid user API key/model and network; no secrets persisted |
 | AI model catalog / fallback | Planned | No automatic switching claimed |
 | Security audit / version diff | Planned | UI links explicitly labeled roadmap |
@@ -42,6 +44,8 @@ Do not mistake a visible tool card for a completed reverse-engineering engine.
   without guessing instruction boundaries. No semantic type/control-flow verification.
 - Method detail previews in the class list are bounded to 20,000 per DEX file.
 - Incoming XREF scans inspect at most 5,000 indexed methods / 1,000,000 code units and list at most 100 matches. Unsupported Dalvik code is skipped and a count shown; references outside the selected DEX, missing or unindexed methods, and virtual dispatch remain unresolved.
+- Multi-DEX scan is **not** a full call graph: it inspects at most 24 DEX files / 6,000 indexed methods / 1,500,000 code units and records up to 18,000 unique static invocation edges. Reflection, JNI calls, dynamically loaded DEX, virtual dispatch targets and code beyond bounds remain unresolved.
+- Java-like pseudocode is approximate and not compilable. It preserves Dalvik registers, original offsets and comments for instructions it cannot translate.
 - Resource table parsing is header-only (package names/counts); resource values,
   IDs and decoded drawables are not yet resolved. Binary XML element and
   attribute names are decoded, but IDs and complex typed values remain symbolic.
@@ -52,5 +56,6 @@ Do not mistake a visible tool card for a completed reverse-engineering engine.
 - No cloud upload of APKs. AI only receives the prompt text users review and
   explicitly send, including selected snippets when they consent.
 - Google account selection is not a substitute for server-side token verification.
+- Google account selection will not work in APKs whose signing SHA is not registered in Google Cloud. GitHub-hosted debug APK signing keys can change between workflow runs. See `docs/GOOGLE_SIGN_IN_SETUP.md`.
 - Test release-mode APKs use a temporary debug signing identity, not a trusted
   production keystore.

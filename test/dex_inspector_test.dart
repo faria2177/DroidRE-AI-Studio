@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:droidre_ai_studio/services/dex_inspector.dart';
+import 'package:droidre_ai_studio/services/dex_call_graph.dart';
 import 'package:droidre_ai_studio/services/dex_symbol_index.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -119,5 +120,49 @@ void main() {
     final bytes = makeDex();
     ByteData.sublistView(bytes).setUint32(92, 99999, Endian.little);
     expect(() => DexSymbolIndex(bytes), throwsFormatException);
+  });
+
+  test('generates bounded Java-like pseudocode with original offsets', () {
+    final bytes = makeDex();
+    final method = DexInspector.inspectBytes(bytes).classes.single.details.single;
+    final pseudo = DexInspector.pseudocodeMethodBytes(bytes, method);
+    expect(pseudo, contains('not compilable Java'));
+    expect(pseudo, contains('L0000: return;'));
+    expect(pseudo, contains('Dalvik @0x0000'));
+  });
+
+  test('finds a caller from classes2.dex using symbolic method names', () {
+    final root = makeDex();
+    final base = makeDex();
+    final other = Uint8List(400)..setRange(0, base.length, base);
+    final data = ByteData.sublistView(other);
+    data.setUint32(32, other.length, Endian.little);
+    data.setUint32(56, 3, Endian.little); // Three strings.
+    data.setUint32(60, 300, Endian.little);
+    for (final (i, off) in <int>[180, 220, 330].indexed) {
+      data.setUint32(300 + i * 4, off, Endian.little);
+    }
+    other.setRange(330, 336, [4, 99, 97, 108, 108, 0]); // call
+    data.setUint32(88, 2, Endian.little);
+    data.setUint32(92, 232, Endian.little); // Room for two method_id_items.
+    data.setUint16(232, 0, Endian.little);
+    data.setUint16(234, 0, Endian.little);
+    data.setUint32(236, 1, Endian.little); // External target: run.
+    data.setUint16(240, 0, Endian.little);
+    data.setUint16(242, 0, Endian.little);
+    data.setUint32(244, 2, Endian.little); // Declared caller: call.
+    other[254] = 1; // class_data method_idx_diff points to ID #1.
+    data.setUint32(292, 4, Endian.little);
+    for (final (i, word) in <int>[0x1071, 0, 0, 0x000e].indexed) {
+      data.setUint16(296 + i * 2, word, Endian.little);
+    }
+    final result = DexCallGraph.scanBytes(
+        {'classes.dex': root, 'classes2.dex': other}, 'classes.dex', 0);
+    expect(result.scannedDexFiles, 2);
+    expect(result.directIncoming, hasLength(1));
+    expect(result.directIncoming.single.caller, contains('->call('));
+    expect(result.directIncoming.single.callee, contains('->run('));
+    expect(result.declarations[result.directIncoming.single.caller]?.dexFile,
+        'classes2.dex');
   });
 }

@@ -24,6 +24,8 @@ flowchart TD
 - `lib/services/dex_inspector.dart`: DEX 035–040 header/class/method/prototype reader, on-demand instruction decoder.
 - `lib/services/dalvik_disassembler.dart`: bounded Dalvik opcode/operand decoder with explicit rejection of unknown formats.
 - `lib/services/dex_symbol_index.dart`: bounded DEX string/type/proto/method/field reference decoding, reused by disassembly and indexed cross-reference navigation.
+- `lib/services/dex_call_graph.dart`: bounded per-APK Multi-DEX signature-matched static invocation edges and two-hop call graph UI.
+- `lib/services/dalvik_pseudocode.dart`: conservative Java-like pseudocode renderer with original Dalvik offsets.
 - `lib/services/elf_inspector.dart`: ELF32/ELF64 metadata reader.
 - `lib/services/resource_inspector.dart`: `resources.arsc` package metadata and bounded asset previews.
 - `lib/services/android_binary_xml_decoder.dart`: bounded Android binary XML element/attribute hierarchy viewer.

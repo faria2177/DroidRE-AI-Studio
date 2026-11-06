@@ -4,6 +4,7 @@ import 'dart:isolate';
 import 'package:flutter/foundation.dart';
 
 import 'dalvik_disassembler.dart';
+import 'dalvik_pseudocode.dart';
 import 'dex_symbol_index.dart';
 import 'package_binary_reader.dart';
 
@@ -182,6 +183,22 @@ class DexInspector {
   ) => Isolate.run(() => analyzeMethodBytes(
     PackageBinaryReader.read(apkPath: apkPath, entryName: entryName,
       maxBytes: maxBytes), method));
+
+  static Future<String> pseudocodeEntryMethod(
+    String apkPath, String entryName, DexMethodSummary method,
+  ) => Isolate.run(() => pseudocodeMethodBytes(
+    PackageBinaryReader.read(apkPath: apkPath, entryName: entryName,
+      maxBytes: maxBytes), method));
+
+  static String pseudocodeMethodBytes(Uint8List bytes, DexMethodSummary method) {
+    if (method.codeOffset == 0) {
+      return '// No method body: abstract, native, or external';
+    }
+    final decoded = DalvikDisassembler.decode(_methodUnits(bytes, method),
+        resolveReference: DexSymbolIndex(bytes).resolve);
+    return DalvikPseudocode.render(decoded,
+        methodName: method.name, prototype: method.prototype);
+  }
 
   static Future<DexCallerResult> findCallersEntry(
     String apkPath, String entryName, List<DexClassSummary> classes,

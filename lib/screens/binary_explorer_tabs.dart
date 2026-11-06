@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 
 import '../models/apk_report.dart';
 import '../services/dex_inspector.dart';
+import '../services/dex_call_graph.dart';
 import '../services/elf_inspector.dart';
 
 class DexBrowserTab extends StatefulWidget {
@@ -19,6 +20,130 @@ class _DexBrowserTabState extends State<DexBrowserTab> {
   String? selected;
   String query = '';
   Future<DexFileSummary>? task;
+
+  void _showPseudocode(DexMethodSummary method, String dexFile) {
+    final future = DexInspector.pseudocodeEntryMethod(
+        widget.report.localPath, dexFile, method);
+    showDialog<void>(context: context, builder: (context) =>
+      FutureBuilder<String>(future: future, builder: (context, snapshot) =>
+        AlertDialog(
+          title: Text('Java-like pseudocode: ${method.name}'),
+          content: SizedBox(width: 650, child: SingleChildScrollView(
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min, children: [
+                const Text('Approximation only: not Java source, compilable '
+                    'output, or verified control-flow reconstruction.'),
+                const SizedBox(height: 10),
+                if (!snapshot.hasData && !snapshot.hasError)
+                  const LinearProgressIndicator(),
+                if (snapshot.hasError)
+                  Text('Pseudocode unavailable: ${snapshot.error}'),
+                if (snapshot.hasData)
+                  SelectableText(snapshot.data!, style: const TextStyle(
+                    fontFamily: 'monospace', fontSize: 12)),
+              ]),
+          )),
+          actions: [
+            if (snapshot.hasData)
+              TextButton.icon(onPressed: () async {
+                await Clipboard.setData(ClipboardData(text: snapshot.data!));
+              }, icon: const Icon(Icons.copy), label: const Text('Copy')),
+            if (snapshot.hasData && widget.onExplainCode != null)
+              TextButton.icon(onPressed: () {
+                Navigator.pop(context);
+                widget.onExplainCode!('Review this approximate Java-like '
+                    'pseudocode against its Dalvik origin. Mark every inference '
+                    'and uncertainty; it is NOT decompiled source.\n\n'
+                    '${snapshot.data!.length > 18000
+                        ? snapshot.data!.substring(0, 18000)
+                        : snapshot.data!}');
+              }, icon: const Icon(Icons.auto_awesome),
+                label: const Text('Explain with AI')),
+            TextButton(onPressed: () => Navigator.pop(context),
+              child: const Text('Close')),
+          ],
+        )));
+  }
+
+  void _showMultiDexGraph(DexMethodSummary method, String dexFile,
+      DexFileSummary currentSummary) {
+    final future = DexCallGraph.scanApk(widget.report.localPath,
+        widget.report.dexFiles, dexFile, method.methodIdIndex);
+    showDialog<void>(context: context, builder: (context) =>
+      AlertDialog(
+        title: const Text('Multi-DEX Call Graph'),
+        content: SizedBox(width: 670, height: MediaQuery.sizeOf(context).height * 0.55,
+          child: FutureBuilder<DexGraphResult>(future: future,
+            builder: (context, snapshot) {
+              if (snapshot.hasError) {
+                return Text('Call graph unavailable: ${snapshot.error}');
+              }
+              if (!snapshot.hasData) {
+                return const Center(child: CircularProgressIndicator());
+              }
+              final graph = snapshot.data!;
+              final sections = <(String, List<DexCallEdge>, bool)>[
+                ('Direct callers', graph.directIncoming, true),
+                ('Direct calls', graph.directOutgoing, false),
+                ('Callers two hops away', graph.secondLevelIncoming, true),
+                ('Calls two hops away', graph.secondLevelOutgoing, false),
+              ];
+              return ListView(children: [
+                SelectableText(graph.root, style: const TextStyle(
+                    fontFamily: 'monospace')),
+                const SizedBox(height: 8),
+                Text('Scanned ${graph.scannedDexFiles} DEX files and '
+                    '${graph.scannedMethods} method bodies. '
+                    '${graph.skippedMethods} unsupported method bodies; '
+                    '${graph.skippedDexFiles} skipped DEX files. '
+                    '${graph.truncated ? 'Partial results (scan cap).' : 'Static references only.'}'),
+                const SizedBox(height: 12),
+                for (final section in sections) ...[
+                  Text('${section.$1} (${section.$2.length})',
+                      style: Theme.of(context).textTheme.titleMedium),
+                  if (section.$2.isEmpty)
+                    const Padding(padding: EdgeInsets.all(8),
+                        child: Text('No matches in scanned code')),
+                  for (final edge in section.$2.take(40))
+                    Builder(builder: (context) {
+                      final signature = section.$3 ? edge.caller : edge.callee;
+                      final location = graph.declarations[signature];
+                      return ListTile(
+                        dense: true,
+                        title: Text(signature, maxLines: 2,
+                            overflow: TextOverflow.ellipsis),
+                        subtitle: Text('${edge.opcode} · '
+                            '${location?.dexFile ?? 'external/other DEX'}'),
+                        trailing: location == null ? null
+                            : const Icon(Icons.open_in_new),
+                        onTap: location == null ? null : () async {
+                          Navigator.pop(context);
+                          try {
+                            final summary = location.dexFile == dexFile
+                                ? currentSummary : await DexInspector.inspectEntry(
+                                    widget.report.localPath, location.dexFile);
+                            if (mounted) {
+                              _showMethod(location.method, location.dexFile, summary);
+                            }
+                          } catch (error) {
+                            if (mounted) {
+                              ScaffoldMessenger.of(this.context).showSnackBar(
+                                SnackBar(content: Text('Unable to open method: $error')));
+                            }
+                          }
+                        },
+                      );
+                    }),
+                  const Divider(height: 22),
+                ],
+              ]);
+            },
+          ),
+        ),
+        actions: [TextButton(onPressed: () => Navigator.pop(context),
+          child: const Text('Close'))],
+      ));
+  }
 
   void _showCallers(DexMethodSummary method, String dexFile,
       DexFileSummary summary) {
@@ -98,6 +223,16 @@ class _DexBrowserTabState extends State<DexBrowserTab> {
                 const SizedBox(height: 10),
                 SelectableText(code,
                   style: const TextStyle(fontFamily: 'monospace', fontSize: 12)),
+                const SizedBox(height: 10),
+                OutlinedButton.icon(
+                  onPressed: snapshot.connectionState != ConnectionState.done
+                      ? null : () {
+                    Navigator.pop(context);
+                    _showPseudocode(method, dexFile);
+                  },
+                  icon: const Icon(Icons.integration_instructions_outlined),
+                  label: const Text('View Java-like pseudocode'),
+                ),
                 if (refs.isNotEmpty) ...[
                   const SizedBox(height: 14),
                   Text('Referenced symbols (${refs.length})',
@@ -178,6 +313,15 @@ class _DexBrowserTabState extends State<DexBrowserTab> {
                 },
                 icon: const Icon(Icons.call_received),
                 label: const Text('Find callers'),
+              ),
+            if (method.methodIdIndex >= 0)
+              TextButton.icon(
+                onPressed: () {
+                  Navigator.pop(context);
+                  _showMultiDexGraph(method, dexFile, summary);
+                },
+                icon: const Icon(Icons.account_tree_outlined),
+                label: const Text('Call graph'),
               ),
             TextButton(onPressed: () => Navigator.pop(context),
               child: const Text('Close')),

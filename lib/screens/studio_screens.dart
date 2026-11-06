@@ -911,9 +911,60 @@ class AccountSettingsScreen extends StatefulWidget {
 }
 
 class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
-  final account = GoogleAccountService();
+  final account = GoogleAccountService.instance;
+  late final TextEditingController clientIdController;
   String message = '';
   bool busy = false;
+
+  @override
+  void initState() {
+    super.initState();
+    clientIdController = TextEditingController(text: account.webClientId);
+    account.addListener(_onAccountChanged);
+    _loadAccount();
+  }
+
+  void _onAccountChanged() {
+    if (mounted) setState(() {});
+  }
+
+  Future<void> _loadAccount() async {
+    try {
+      await account.loadConfiguration();
+      if (!mounted) return;
+      clientIdController.text = account.webClientId;
+      if (account.configured && !account.requiresRestart) {
+        await account.restoreSession();
+      }
+    } catch (error) {
+      if (mounted) {
+        setState(() => message = 'Account restore unavailable: $error');
+      }
+    }
+  }
+
+  Future<void> _saveClientId() async {
+    setState(() => busy = true);
+    try {
+      await account.saveClientId(clientIdController.text);
+      if (mounted) {
+        setState(() => message = account.requiresRestart
+            ? 'Saved. Restart the app before signing in with this new ID.'
+            : 'Web OAuth Client ID saved on this device.');
+      }
+    } catch (error) {
+      if (mounted) setState(() => message = 'Could not save OAuth ID: $error');
+    } finally {
+      if (mounted) setState(() => busy = false);
+    }
+  }
+
+  @override
+  void dispose() {
+    account.removeListener(_onAccountChanged);
+    clientIdController.dispose();
+    super.dispose();
+  }
 
   Future<void> _signIn() async {
     setState(() => busy = true);
@@ -937,16 +988,43 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
           Text('Google account', style: Theme.of(context).textTheme.titleLarge),
           const SizedBox(height: 8),
           Text(account.configured
-              ? 'Google identity sign-in is enabled. Remote backend verification '
-                  'is not yet part of this local-first MVP.'
-              : 'Google Sign-In is ready for OAuth configuration. '
-                  'The repository owner must supply GOOGLE_WEB_CLIENT_ID.'),
+              ? 'Web OAuth Client ID is configured. Android package and signing '
+                  'fingerprint must also be registered with Google Cloud.'
+              : 'Google identity sign-in requires your registered Web OAuth '
+                  'Client ID. Enter it below and save it on this device.'),
           const SizedBox(height: 14),
+          TextField(
+            controller: clientIdController,
+            decoration: const InputDecoration(
+              labelText: 'Google Web OAuth Client ID',
+              hintText: '12345-abc.apps.googleusercontent.com',
+              border: OutlineInputBorder(),
+              helperText: 'Public OAuth client ID, not a client secret.',
+            ),
+            autocorrect: false,
+            enableSuggestions: false,
+          ),
+          const SizedBox(height: 8),
+          OutlinedButton.icon(
+            onPressed: busy ? null : _saveClientId,
+            icon: const Icon(Icons.save_outlined),
+            label: const Text('Save OAuth configuration'),
+          ),
+          const SizedBox(height: 8),
+          const SelectableText('Android package: com.jahid.droidreai'),
+          const SizedBox(height: 12),
           FilledButton.icon(
-            onPressed: busy || !account.configured ? null : _signIn,
+            onPressed: busy || !account.configured || account.requiresRestart
+                ? null : _signIn,
             icon: const Icon(Icons.account_circle),
             label: const Text('Continue with Google'),
           ),
+          if (account.account != null)
+            ListTile(
+              leading: const Icon(Icons.verified_user_outlined),
+              title: Text(account.account!.displayName ?? 'Google account'),
+              subtitle: Text(account.account!.email),
+            ),
           if (account.account != null)
             TextButton(
               onPressed: () async {
@@ -973,7 +1051,7 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
           ),
           const ListTile(
             leading: Icon(Icons.build_circle_outlined),
-            title: Text('Version 0.1.0 — Foundation'),
+            title: Text('Version 0.6.0 — Reverse Engineering Studio'),
             subtitle: Text('See docs/FEATURE_STATUS.md for engine limitations'),
           ),
         ],
