@@ -138,9 +138,9 @@ void main() {
     final data = ByteData.sublistView(other);
     data.setUint32(32, other.length, Endian.little);
     data.setUint32(56, 3, Endian.little); // Three strings.
-    data.setUint32(60, 300, Endian.little);
+    data.setUint32(60, 360, Endian.little);
     for (final (i, off) in <int>[180, 220, 330].indexed) {
-      data.setUint32(300 + i * 4, off, Endian.little);
+      data.setUint32(360 + i * 4, off, Endian.little);
     }
     other.setRange(330, 336, [4, 99, 97, 108, 108, 0]); // call
     data.setUint32(88, 2, Endian.little);
