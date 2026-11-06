@@ -59,6 +59,10 @@ class AndroidManifestParser {
     if (data.length < 8 || _u16(data, 0) != 0x0003) {
       throw const FormatException('Not Android binary XML');
     }
+    final xmlSize = _u32(data, 4);
+    if (xmlSize < 8 || xmlSize > data.length) {
+      throw const FormatException('Invalid XML document length');
+    }
     final strings = <String>[];
     final metadata = <String, String>{};
     final permissions = <String>[];
@@ -66,6 +70,7 @@ class AndroidManifestParser {
     final services = <String>[];
     final receivers = <String>[];
     final providers = <String>[];
+    var sawManifest = false;
     var cursor = _u16(data, 2);
     var chunks = 0;
     while (cursor + 8 <= data.length && chunks++ < 100000) {
@@ -107,6 +112,7 @@ class AndroidManifestParser {
         }
         if (tag == 'manifest' || tag == 'uses-sdk') {
           metadata.addAll(attrs);
+          if (tag == 'manifest') sawManifest = true;
         } else {
           final name = attrs['name'];
           if (name != null && name.isNotEmpty) {
@@ -134,6 +140,7 @@ class AndroidManifestParser {
       }
       cursor += chunkSize;
     }
+    if (!sawManifest) throw const FormatException('Manifest root not found');
     return ManifestInfo(
       packageName: metadata['package'] ?? '',
       versionCode: metadata['versionCode'] ?? '',
