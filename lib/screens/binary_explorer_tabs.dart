@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../models/apk_report.dart';
 import '../services/dex_inspector.dart';
@@ -17,6 +18,43 @@ class _DexBrowserTabState extends State<DexBrowserTab> {
   String? selected;
   String query = '';
   Future<DexFileSummary>? task;
+
+  void _showMethod(DexMethodSummary method) {
+    final preview = method.smaliPreview;
+    showDialog<void>(context: context, builder: (context) => AlertDialog(
+      title: Text('${method.name}${method.prototype}',
+        maxLines: 2, overflow: TextOverflow.ellipsis),
+      content: SizedBox(width: 600, child: SingleChildScrollView(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text('Smali-style raw code-unit preview. Opcode labels are '
+              'hints only: operands, payloads and instruction boundaries '
+              'are not decoded. This is NOT assemblable Smali.'),
+            const SizedBox(height: 8),
+            Text('Code offset: 0x${method.codeOffset.toRadixString(16)}'
+              ' · Code units: ${method.instructionCount}'),
+            const SizedBox(height: 10),
+            SelectableText(preview,
+              style: const TextStyle(fontFamily: 'monospace', fontSize: 12)),
+          ],
+        ),
+      )),
+      actions: [
+        TextButton.icon(
+          icon: const Icon(Icons.copy),
+          onPressed: () async {
+            await Clipboard.setData(ClipboardData(text: preview));
+            if (context.mounted) Navigator.pop(context);
+          },
+          label: const Text('Copy preview'),
+        ),
+        TextButton(onPressed: () => Navigator.pop(context),
+          child: const Text('Close')),
+      ],
+    ));
+  }
 
   @override
   void didUpdateWidget(covariant DexBrowserTab oldWidget) {
@@ -69,8 +107,9 @@ class _DexBrowserTabState extends State<DexBrowserTab> {
                 icon: const Icon(Icons.manage_search),
                 label: Text(task == null ? 'Inspect classes' : 'Loaded / loading'),
               ),
-              const Text('Supports standard DEX 035–040, up to 32 MiB per file. '
-                  'No Smali or Java source reconstruction.'),
+              const Text('DEX 035–040 · limit 32 MiB per file. '
+                  'Tap a method for its signature and bounded code-unit preview. '
+                  'No full Smali/Java decompilation.'),
             ],
           ),
         ),
@@ -114,8 +153,17 @@ class _DexBrowserTabState extends State<DexBrowserTab> {
                       title: Text(item.name),
                       subtitle: Text('${item.methodCount} declared methods'),
                       children: [
-                        for (final name in item.methods)
-                          ListTile(dense: true, title: SelectableText(name)),
+                        for (final method in item.details)
+                          ListTile(
+                            dense: true,
+                            title: Text(method.name),
+                            subtitle: Text(method.prototype),
+                            trailing: const Icon(Icons.code),
+                            onTap: () => _showMethod(method),
+                          ),
+                        for (final name in item.methods.skip(item.details.length))
+                          ListTile(dense: true, title: Text(name),
+                            subtitle: const Text('Name only (detail preview limit reached)')),
                         if (item.methodCount > item.methods.length)
                           ListTile(title: Text('First ${item.methods.length} methods shown')),
                         if (item.methodCount == 0)

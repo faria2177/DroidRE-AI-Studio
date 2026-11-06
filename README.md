@@ -2,7 +2,7 @@
 
 An **Android-first Flutter project** for offline APK inspection and optional AI code explanations.
 
-**Current version:** 0.2.0 — initial DEX/ELF browsers, not a full JADX or Apktool replacement.
+**Current version:** 0.3.0 — DEX method details, raw instruction previews and resource browser; not a full JADX or Apktool replacement.
 
 ## What works today
 
@@ -10,6 +10,8 @@ An **Android-first Flutter project** for offline APK inspection and optional AI 
 - Android file picker import for APK/ZIP, and basic APKS/XAPK/APKM/AAB container listing.
 - Read-only local archive enumeration, file count, SHA-256, DEX/native `.so` inventory, and limited framework indicators.
 - On-demand DEX class/method-name browser (DEX 035–040) with search; ELF32/ELF64 header inspection for native libraries.
+- Tap supported DEX methods to view prototype signatures, access flags and a **non-assemblable Smali-style code-unit preview** (with limited opcode hints).
+- Browse `res/` and `assets/` paths, inspect compiled `resources.arsc` package headers, preview small text/images and binary hex headers locally.
 - Decode common fields from Android binary XML or plain XML manifests, including package/version/SDK/permission/component names.
 - Projects are stored in app-private local storage and can be reopened.
 - Opt-in AI chat with your own OpenRouter, OpenAI, DeepSeek or Groq API key; only text that you explicitly enter leaves the device.
@@ -55,7 +57,8 @@ For setup: [BUILD.md](docs/BUILD.md) · [Google Sign-In](docs/GOOGLE_SIGN_IN_SET
 ## Architecture
 
 Flutter drives UI, projects, local binary archive indexing and opt-in AI requests.
-The current Dart readers inspect DEX indices and ELF headers. A future Kotlin/native
+The current Dart readers inspect DEX indices, bounded method code units,
+ELF headers and top-level Android resource tables. A future Kotlin/native
 analyzer may handle full Smali/ELF disassembly. Optional heavyweight
 desktop worker integrations are documented as future features.
 

@@ -12,13 +12,93 @@ class DexClassSummary {
     required this.accessFlags,
     required this.methodCount,
     required this.methods,
+    this.details = const [],
   });
 
   final String name;
   final int accessFlags;
   final int methodCount;
   final List<String> methods;
+  final List<DexMethodSummary> details;
 }
+
+@immutable
+class DexMethodSummary {
+  const DexMethodSummary({
+    required this.name,
+    required this.prototype,
+    required this.accessFlags,
+    required this.codeOffset,
+    required this.registerCount,
+    required this.instructionCount,
+    required this.codeUnits,
+  });
+
+  final String name;
+  final String prototype;
+  final int accessFlags;
+  final int codeOffset;
+  final int registerCount;
+  final int instructionCount;
+  final List<int> codeUnits;
+
+  String get smaliPreview {
+    final modifiers = <String>[
+      if ((accessFlags & 1) != 0) 'public',
+      if ((accessFlags & 2) != 0) 'private',
+      if ((accessFlags & 4) != 0) 'protected',
+      if ((accessFlags & 8) != 0) 'static',
+      if ((accessFlags & 16) != 0) 'final',
+      if ((accessFlags & 256) != 0) 'native',
+      if ((accessFlags & 1024) != 0) 'abstract',
+    ];
+    final result = StringBuffer('.method ${modifiers.join(' ')} $name$prototype\n');
+    if (codeOffset == 0) {
+      result.writeln('    # No code_item (abstract/native/external)');
+    } else {
+      result.writeln('    .registers $registerCount');
+      for (var i = 0; i < codeUnits.length; i++) {
+        final word = codeUnits[i];
+        final opcode = word & 0xff;
+        final mnemonic = _opcodeLabel(opcode);
+        result.writeln('    # ${i.toRadixString(16).padLeft(4, '0')}: '
+            '0x${word.toRadixString(16).padLeft(4, '0')}'
+            '${mnemonic == null ? '' : '  $mnemonic'}');
+      }
+      if (codeUnits.length < instructionCount) {
+        result.writeln('    # Preview truncated to ${codeUnits.length} code units');
+      }
+    }
+    result.write('.end method');
+    return result.toString();
+  }
+}
+
+// Byte-level hints only: these are NOT decoded instructions or Smali operands.
+String? _opcodeLabel(int opcode) => switch (opcode) {
+  0x01 => 'move',
+  0x02 => 'move/from16',
+  0x03 => 'move/16',
+  0x0a => 'move-result',
+  0x0c => 'move-result-object',
+  0x0e => 'return-void',
+  0x0f => 'return',
+  0x10 => 'return-wide',
+  0x11 => 'return-object',
+  0x12 => 'const/4',
+  0x13 => 'const/16',
+  0x14 => 'const',
+  0x1a => 'const-string',
+  0x1b => 'const-string/jumbo',
+  0x22 => 'new-instance',
+  0x28 => 'goto',
+  0x32 => 'if-eq',
+  0x6e => 'invoke-virtual',
+  0x70 => 'invoke-direct',
+  0x71 => 'invoke-static',
+  0x72 => 'invoke-interface',
+  _ => null,
+};
 
 @immutable
 class DexFileSummary {
@@ -35,7 +115,7 @@ class DexFileSummary {
   final List<DexClassSummary> classes;
 }
 
-/// Read-only DEX directory parser (class and method names, not bytecode).
+/// Read-only DEX index reader with bounded raw code-unit previews.
 class DexInspector {
   const DexInspector._();
 
@@ -94,6 +174,7 @@ class DexInspector {
 
     final (stringCount, stringsOff) = table(56, 60, 4, 500000);
     final (typesCount, typesOff) = table(64, 68, 4, 500000);
+    final (protoCount, protoOff) = table(72, 76, 12, 500000);
     final (methodCount, methodsOff) = table(88, 92, 8, 500000);
     final (classCount, classesOff) = table(96, 100, 32, 100000);
 
@@ -158,13 +239,69 @@ class DexInspector {
       return stringAt(u32(offset + 4));
     }
 
+    String prototype(int methodIdx) {
+      final methodOffset = methodsOff + methodIdx * 8;
+      final idx = data.getUint16(methodOffset + 2, Endian.little);
+      if (idx >= protoCount) {
+        throw const FormatException('DEX prototype index is invalid');
+      }
+      final off = protoOff + idx * 12;
+      final resultType = u32(off + 4);
+      final paramsOff = u32(off + 8);
+      final params = <String>[];
+      if (paramsOff != 0) {
+        final count = u32(paramsOff);
+        if (count > 255) {
+          throw const FormatException('DEX parameter list is too large');
+        }
+        check(paramsOff + 4, count * 2);
+        for (var i = 0; i < count; i++) {
+          final type = data.getUint16(paramsOff + 4 + i * 2, Endian.little);
+          if (type >= typesCount) {
+            throw const FormatException('DEX parameter type is invalid');
+          }
+          params.add(stringAt(u32(typesOff + type * 4)));
+        }
+      }
+      if (resultType >= typesCount) {
+        throw const FormatException('DEX return type is invalid');
+      }
+      return '(${params.join()})${stringAt(u32(typesOff + resultType * 4))}';
+    }
+
+    DexMethodSummary detail(int index, int flags, int codeOffset) {
+      var registers = 0;
+      var count = 0;
+      final codeUnits = <int>[];
+      if (codeOffset != 0) {
+        check(codeOffset, 16);
+        registers = data.getUint16(codeOffset, Endian.little);
+        count = u32(codeOffset + 12);
+        check(codeOffset + 16, count * 2);
+        for (var i = 0; i < count && i < 64; i++) {
+          codeUnits.add(data.getUint16(codeOffset + 16 + i * 2, Endian.little));
+        }
+      }
+      return DexMethodSummary(
+        name: methodName(index),
+        prototype: prototype(index),
+        accessFlags: flags,
+        codeOffset: codeOffset,
+        registerCount: registers,
+        instructionCount: count,
+        codeUnits: codeUnits,
+      );
+    }
+
     final classes = <DexClassSummary>[];
+    var detailsRemaining = 20000;
     for (var i = 0; i < classCount; i++) {
       final offset = classesOff + i * 32;
       final name = className(u32(offset));
       final flags = u32(offset + 4);
       final classDataOff = u32(offset + 24);
       final methods = <String>[];
+      final details = <DexMethodSummary>[];
       var declaredMethodCount = 0;
       if (classDataOff != 0) {
         check(classDataOff, 1);
@@ -188,9 +325,15 @@ class DexInspector {
           var index = 0;
           for (var j = 0; j < count; j++) {
             index += leb();
-            leb(); // access_flags
-            leb(); // code_off
-            if (methods.length < 200) methods.add(methodName(index));
+            final accessFlags = leb();
+            final codeOff = leb();
+            if (methods.length < 200) {
+              methods.add(methodName(index));
+              if (detailsRemaining > 0) {
+                details.add(detail(index, accessFlags, codeOff));
+                detailsRemaining--;
+              }
+            }
             if (index >= methodCount) {
               throw const FormatException('DEX method index overflow');
             }
@@ -202,6 +345,7 @@ class DexInspector {
         accessFlags: flags,
         methodCount: declaredMethodCount,
         methods: methods,
+        details: details,
       ));
     }
     return DexFileSummary(

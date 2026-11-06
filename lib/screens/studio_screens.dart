@@ -5,6 +5,7 @@ import '../services/ai_chat_service.dart';
 import '../services/google_account_service.dart';
 import '../services/studio_controller.dart';
 import 'binary_explorer_tabs.dart';
+import 'resource_explorer_tab.dart';
 
 class StudioShell extends StatefulWidget {
   const StudioShell({super.key, required this.controller});
@@ -469,7 +470,7 @@ class _InspectorScreenState extends State<InspectorScreen> {
     }
     return DefaultTabController(
       key: ValueKey(report.id),
-      length: 5,
+      length: 6,
       child: Column(
         children: [
           Padding(
@@ -500,6 +501,7 @@ class _InspectorScreenState extends State<InspectorScreen> {
               Tab(text: 'Files'),
               Tab(text: 'DEX'),
               Tab(text: 'Native'),
+              Tab(text: 'Resources'),
             ],
           ),
           Expanded(
@@ -545,6 +547,7 @@ class _InspectorScreenState extends State<InspectorScreen> {
                 ),
                 DexBrowserTab(report: report),
                 ElfBrowserTab(report: report),
+                ResourceExplorerTab(report: report),
               ],
             ),
           ),

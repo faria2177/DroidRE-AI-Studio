@@ -10,6 +10,7 @@ flowchart TD
   ZIP --> XML[Binary XML manifest parser]
   ZIP --> DEX[Bounded DEX class/method index reader]
   ZIP --> ELF[Bounded ELF header reader]
+  ZIP --> RES[Resource/asset preview and resource table headers]
   UI --> CHAT[Explicit text-only AI adapter]
   CHAT --> API[Selected authorized provider]
 ```
@@ -20,9 +21,11 @@ flowchart TD
 - `lib/services/apk_analyzer.dart`: ZIP metadata, SHA-256, DEX/native inventory.
 - `lib/services/android_manifest_parser.dart`: bounded Android binary XML parser.
 - `lib/services/package_binary_reader.dart`: user-selected, bounded binary member extraction.
-- `lib/services/dex_inspector.dart`: DEX 035–040 header/class/method name reader.
+- `lib/services/dex_inspector.dart`: DEX 035–040 header/class/method/prototype reader, bounded code-unit previews.
 - `lib/services/elf_inspector.dart`: ELF32/ELF64 metadata reader.
+- `lib/services/resource_inspector.dart`: `resources.arsc` package metadata and bounded asset previews.
 - `lib/screens/binary_explorer_tabs.dart`: on-demand inspectors with class search.
+- `lib/screens/resource_explorer_tab.dart`: path/category search and resource detail viewer.
 - `lib/services/ai_chat_service.dart`: opt-in chat calls; no automatic binary context.
 - `lib/services/google_account_service.dart`: OAuth account chooser when configured.
 
