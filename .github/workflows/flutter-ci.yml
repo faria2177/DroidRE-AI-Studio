@@ -1,0 +1,53 @@
+name: Flutter CI and Debug APK
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  android:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: '3.47.4'
+          cache: true
+      - name: Generate missing Flutter platform wrapper files
+        run: flutter create . --platforms=android --org com.jahid --project-name droidre_ai_studio
+      - name: Fetch Flutter dependencies
+        run: flutter pub get
+      - name: Format Dart sources
+        run: dart format lib test
+      - name: Analyze project
+        run: flutter analyze
+      - name: Run tests
+        run: flutter test
+      - name: Build installable Android debug APK
+        run: flutter build apk --debug
+      - name: Check APK exists and calculate SHA-256
+        run: |
+          test -s build/app/outputs/flutter-apk/app-debug.apk
+          sha256sum build/app/outputs/flutter-apk/app-debug.apk > build/app/outputs/flutter-apk/SHA256SUMS.txt
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: droidre-debug-apk
+          path: |
+            build/app/outputs/flutter-apk/app-debug.apk
+            build/app/outputs/flutter-apk/SHA256SUMS.txt
+          if-no-files-found: error
+          retention-days: 14

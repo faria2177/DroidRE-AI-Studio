@@ -1,0 +1,46 @@
+name: Android ABI APKs (testing only)
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  abi-build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: '3.47.4'
+          cache: true
+      - run: flutter create . --platforms=android --org com.jahid --project-name droidre_ai_studio
+      - run: flutter pub get
+      - run: flutter analyze
+      - run: flutter test
+      - name: Build ABI-specific test artifacts
+        run: flutter build apk --release --split-per-abi
+      - name: Verify and hash artifacts
+        run: |
+          test -s build/app/outputs/flutter-apk/app-armeabi-v7a-release.apk
+          test -s build/app/outputs/flutter-apk/app-arm64-v8a-release.apk
+          cd build/app/outputs/flutter-apk
+          sha256sum *-release.apk > SHA256SUMS.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: droidre-abi-apks-TEST-DEBUG-SIGNED
+          path: |
+            build/app/outputs/flutter-apk/*-release.apk
+            build/app/outputs/flutter-apk/SHA256SUMS.txt
+          if-no-files-found: error
+          retention-days: 14
+
+# These are release-mode binaries signed with the temporary debug key from
+# android/app/build.gradle.kts. They are NOT production distribution releases.
