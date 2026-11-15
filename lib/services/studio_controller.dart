@@ -102,12 +102,21 @@ class StudioController extends ChangeNotifier {
       _error = null;
       notifyListeners();
       final source = File(sourcePath);
+      // Refuse oversize archives before making an app-private copy.
+      final fileLength = await source.length();
+      if (fileLength < 4) {
+        throw const FormatException('Selected archive is too small');
+      }
+      if (fileLength > ApkAnalyzer.maxArchiveBytes) {
+        throw const FormatException('Files over 1 GiB need the worker engine');
+      }
       final folder = await _projectFolder();
       final id = DateTime.now().microsecondsSinceEpoch.toString();
       final safeName = selected.name.replaceAll(RegExp(r'[^a-zA-Z0-9._-]'), '_');
       final localPath = '${folder.path}/${id}_$safeName';
-      await source.copy(localPath);
+      // Copy failures must also remove partially written artifacts.
       try {
+        await source.copy(localPath);
         final report = await Isolate.run(() => ApkAnalyzer.inspect(
           path: localPath,
           displayName: selected.name,
@@ -119,6 +128,10 @@ class StudioController extends ChangeNotifier {
         notifyListeners();
         return true;
       } catch (_) {
+        _projects.removeWhere((item) => item.id == id);
+        if (_activeId == id) {
+          _activeId = _projects.isEmpty ? null : _projects.first.id;
+        }
         final copied = File(localPath);
         if (await copied.exists()) await copied.delete();
         rethrow;

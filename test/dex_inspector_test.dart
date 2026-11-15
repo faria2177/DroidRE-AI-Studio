@@ -167,4 +167,31 @@ void main() {
     expect(result.declarations[result.directIncoming.single.caller]?.dexFile,
         'classes2.dex');
   });
+
+  test('scans every DEX within the cap without premature truncation', () {
+    final dexFiles = <String, Uint8List>{
+      for (var i = 1; i <= DexCallGraph.maxDexFiles; i++)
+        'classes$i.dex': makeDex(),
+    };
+    final graph = DexCallGraph.scanBytes(dexFiles, 'classes1.dex', 0);
+    expect(graph.scannedDexFiles, DexCallGraph.maxDexFiles);
+    expect(graph.scannedMethods, DexCallGraph.maxDexFiles);
+    expect(graph.truncated, isFalse);
+    expect(graph.skippedDexFiles, 0);
+  });
+
+  test('prioritizes selected DEX outside the first 24 files', () {
+    final dexFiles = <String, Uint8List>{
+      for (var i = 1; i <= DexCallGraph.maxDexFiles + 1; i++)
+        'classes$i.dex': makeDex(),
+    };
+    const selectedDex = 'classes25.dex';
+    final graph = DexCallGraph.scanBytes(dexFiles, selectedDex, 0);
+    expect(graph.scannedDexFiles, DexCallGraph.maxDexFiles);
+    expect(graph.scannedMethods, DexCallGraph.maxDexFiles);
+    expect(graph.declarations[graph.root]?.dexFile, selectedDex);
+    expect(graph.truncated, isTrue);
+    expect(graph.warnings.single, contains('1 DEX file(s) omitted'));
+  });
+
 }

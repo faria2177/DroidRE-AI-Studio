@@ -99,6 +99,14 @@ class DexCallGraph {
     final rootBytes = read(rootDex);
     final rootIndex = DexSymbolIndex(rootBytes);
     final root = rootIndex.methodAt(rootMethodId);
+    // Always scan the DEX containing the method the user selected, even
+    // when a package has more DEX files than the bounded scan permits.
+    final prioritizedNames = <String>[
+      rootDex,
+      ...names.where((name) => name != rootDex),
+    ];
+    final omittedDexFiles = prioritizedNames.length > maxDexFiles
+        ? prioritizedNames.length - maxDexFiles : 0;
     final edges = <DexCallEdge>[];
     final seenEdges = <String>{};
     final declarations = <String, DexGraphMethod>{};
@@ -107,10 +115,16 @@ class DexCallGraph {
     var skipped = 0;
     var skippedDex = 0;
     var codeUnits = 0;
-    var truncated = names.length > maxDexFiles;
+    // Omitted files are reported at the end; they must NOT stop the scan
+    // from examining all of the DEX files that fit in the scan window.
+    var truncated = false;
     final warnings = <String>[];
+    if (omittedDexFiles > 0) {
+      warnings.add('$omittedDexFiles DEX file(s) omitted by the '
+          '$maxDexFiles-file scan limit');
+    }
 
-    for (final name in names.take(maxDexFiles)) {
+    for (final name in prioritizedNames.take(maxDexFiles)) {
       if (scanned >= maxScannedMethods || codeUnits >= maxCodeUnits ||
           edges.length >= maxEdges) {
         truncated = true;
@@ -193,7 +207,8 @@ class DexCallGraph {
     return DexGraphResult(root: root, edges: edges,
         declarations: declarations, scannedDexFiles: dexCount,
         scannedMethods: scanned, skippedMethods: skipped,
-        skippedDexFiles: skippedDex, truncated: truncated,
+        skippedDexFiles: skippedDex,
+        truncated: truncated || omittedDexFiles > 0,
         warnings: warnings);
   }
 }
