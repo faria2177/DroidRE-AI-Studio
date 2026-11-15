@@ -16,6 +16,7 @@ class DexClassSummary {
     required this.methodCount,
     required this.methods,
     this.details = const [],
+    this.classDefIndex = -1,
   });
 
   final String name;
@@ -23,6 +24,9 @@ class DexClassSummary {
   final int methodCount;
   final List<String> methods;
   final List<DexMethodSummary> details;
+
+  /// Stable index in class_defs for on-demand method pagination.
+  final int classDefIndex;
 }
 
 @immutable
@@ -562,6 +566,7 @@ class DexInspector {
         methodCount: declaredMethodCount,
         methods: methods,
         details: details,
+        classDefIndex: i,
       ));
     }
     return DexFileSummary(
