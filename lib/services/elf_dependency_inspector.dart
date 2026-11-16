@@ -146,7 +146,9 @@ class ElfDependencyInspector {
       check(shoff, shnum * shentsize);
       for (var i = 0; i < shnum; i++) {
         final at = shoff + i * shentsize;
-        if (u32(at + 4) != 6) continue; // SHT_DYNAMIC
+        if (u32(at + 4) != 6) {
+          continue;
+        } // SHT_DYNAMIC
         final offset = is64 ? word(at + 24) : u32(at + 16);
         final size = is64 ? word(at + 32) : u32(at + 20);
         final link = u32(at + (is64 ? 40 : 24));
@@ -171,7 +173,9 @@ class ElfDependencyInspector {
 
     if (info == null) {
       for (final segment in segments) {
-        if (segment.type != 2) continue;
+        if (segment.type != 2) {
+          continue;
+        }
         final minSize = is64 ? 16 : 8;
         if (segment.fileSize % minSize != 0) {
           throw const FormatException('Invalid PT_DYNAMIC size');
@@ -230,7 +234,9 @@ class ElfDependencyInspector {
         warnings.add('DT_STRTAB/DT_STRSZ unavailable: names cannot be decoded');
       } else {
         for (final segment in segments) {
-          if (segment.type != 1 || straddr < segment.vaddr) continue;
+          if (segment.type != 1 || straddr < segment.vaddr) {
+            continue;
+          }
           final relative = straddr - segment.vaddr;
           if (relative > segment.fileSize ||
               strsz > segment.fileSize - relative) continue;
@@ -269,11 +275,13 @@ class ElfDependencyInspector {
     if (stringsOffset != null && stringsLength != null) {
       for (final tag in tags) {
         if (tag.tag != 1 && tag.tag != 14 &&
-            tag.tag != 15 && tag.tag != 29) continue;
+            tag.tag != 15 && tag.tag != 29) {
+          continue;
+        }
         final name = decodeName(tag.value);
         if (tag.tag == 1) {
           if (needed.length >= maxDependencies) {
-            warnings.add('Dependency list limited to ${maxDependencies} names');
+            warnings.add('Dependency list limited to $maxDependencies names');
             break;
           }
           needed.add(name);
