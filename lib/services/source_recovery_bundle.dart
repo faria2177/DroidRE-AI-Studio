@@ -9,6 +9,7 @@ import 'dex_inspector.dart';
 import 'dex_class_metadata_inspector.dart';
 import 'dex_class_annotation_inspector.dart';
 import 'dex_method_semantics_inspector.dart';
+import 'dex_debug_info_inspector.dart';
 import 'dex_method_pager.dart';
 import 'resource_inspector.dart';
 
@@ -131,6 +132,9 @@ class SourceRecoveryBundle {
     var tryRegionsExported = 0;
     var referencesExported = 0;
     var annotationTypesExported = 0;
+    var debugMethodsRecovered = 0;
+    var sourcePositionsRecovered = 0;
+    var localRangesRecovered = 0;
     var dexVisited = 0;
     var resourcesExported = 0;
     var resourceBytes = 0;
@@ -276,6 +280,7 @@ class SourceRecoveryBundle {
         }
 
         final methodSemanticRecords = <Map<String, Object?>>[];
+        final methodDebugRecords = <Map<String, Object?>>[];
         final methodInfo = StringBuffer();
         final javaLike = StringBuffer()
           ..writeln('// READ-ONLY reconstruction preview.')
@@ -370,6 +375,77 @@ class SourceRecoveryBundle {
               });
             }
             try {
+              final debug = DexDebugInfoInspector.inspectBytes(
+                dex, method,
+                defaultSourceFile: metadata?.sourceFile,
+              );
+              methodDebugRecords.add({
+                'method': method.name,
+                'prototype': method.prototype,
+                'methodIdIndex': method.methodIdIndex,
+                'codeOffset': method.codeOffset,
+                'debug': debug.toJson(),
+              });
+              if (debug.available) {
+                debugMethodsRecovered++;
+                sourcePositionsRecovered += debug.positions.length;
+                localRangesRecovered += debug.locals.length;
+                javaLike.writeln('// Available source debug hints for '
+                    '${method.name}${method.prototype}:');
+                final parameterNames = debug.parameters
+                    .map((parameter) => parameter.name ?? '(unknown)')
+                    .join(', ');
+                javaLike.writeln('// Parameters: $parameterNames');
+                if (debug.positions.isNotEmpty) {
+                  dalvik.writeln('    # Source line mapping '
+                      '(code-unit offset -> line):');
+                  for (final position in debug.positions.take(60)) {
+                    final file = position.sourceFile == null
+                        ? '(unknown source)'
+                        : jsonEncode(position.sourceFile);
+                    dalvik.writeln('    # ${position.address} -> '
+                        'line ${position.line} [$file]');
+                    javaLike.writeln('// DEX PC ${position.address}: '
+                        'source line ${position.line} [$file]');
+                  }
+                  if (debug.positions.length > 60) {
+                    dalvik.writeln('    # Further source positions are in '
+                        'method_debug_info.json');
+                  }
+                }
+                if (debug.locals.isNotEmpty) {
+                  javaLike.writeln('// Live local variables '
+                      '(code-unit start..end, null = unknown):');
+                  for (final local in debug.locals.take(40)) {
+                    final name = jsonEncode(local.name);
+                    javaLike.writeln('// v${local.register}: $name '
+                        'type=${local.typeDescriptor ?? '(unknown)'} '
+                        'pc=${local.startAddress}..'
+                        '${local.endAddressExclusive?.toString() ?? '?'} '
+                        '${local.restarted ? '(restarted)' : ''}');
+                  }
+                }
+              } else {
+                javaLike.writeln('// No DEX debug_info_item for '
+                    '${method.name}${method.prototype}; source names '
+                    'and line numbers are unavailable.');
+              }
+              if (debug.partial) {
+                warning('Incomplete DEX debug information for '
+                    '${klass.name}.${method.name}: '
+                    '${debug.warnings.join('; ')}');
+              }
+            } catch (error) {
+              warning('Method debug information failed for '
+                  '${klass.name}.${method.name}: $error');
+              methodDebugRecords.add({
+                'method': method.name,
+                'prototype': method.prototype,
+                'methodIdIndex': method.methodIdIndex,
+                'error': error.toString(),
+              });
+            }
+            try {
               javaLike.writeln(DexInspector.pseudocodeMethodBytes(
                   dex, method));
               dalvik.writeln(DexInspector.disassembleMethodBytes(
@@ -400,6 +476,13 @@ class SourceRecoveryBundle {
           'note': 'Read-only try/catch and referenced pool entries. '
               'Not verified Smali, no cross-DEX resolution.',
           'methods': methodSemanticRecords,
+        }));
+        textFile('$classFolder/method_debug_info.json',
+            const JsonEncoder.withIndent('  ').convert({
+          'schemaVersion': 1,
+          'note': 'DEX debug_info positions, parameter names and locals '
+              'only where encoded. Never invented if stripped.',
+          'methods': methodDebugRecords,
         }));
         textFile('$classFolder/java_like.txt', javaLike.toString());
         textFile('$classFolder/dalvik.txt', dalvik.toString());
@@ -536,6 +619,9 @@ class SourceRecoveryBundle {
       'tryRegionsExported': tryRegionsExported,
       'referencesExported': referencesExported,
       'annotationTypesExported': annotationTypesExported,
+      'debugMethodsRecovered': debugMethodsRecovered,
+      'sourcePositionsRecovered': sourcePositionsRecovered,
+      'localRangesRecovered': localRangesRecovered,
       'resourcesExported': resourcesExported,
       'partial': partial,
       'warnings': warnings,

@@ -46,7 +46,9 @@ Native Android, Flutter, React Native, Unity or NativeScript, and structured DEX
 hints and fields in \`CLASS_METADATA.json\`), bounded try/catch and
 code-reference details in \`method_semantics.json\`, and annotation type
 inventories in \`ANNOTATIONS_INDEX.json\` (no annotation value decoding).
-Coverage warnings remain in \`REPORT.json\`. It is **not** original source, compilable Java,
+Where debug information exists, `method_debug_info.json` also contains
+source line/parameter/local-variable names; stripped or invalid debug data
+is not guessed. Coverage warnings remain in \`REPORT.json\`. It is **not** original source, compilable Java,
 assemblable Smali or a rebuildable Android Studio/Flutter project.
 If the user cancels folder selection, importing the APK still succeeds.
 See [Source Recovery](docs/SOURCE_RECOVERY.md) for limits, permitted folder

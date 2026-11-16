@@ -54,6 +54,7 @@ Documents/
         classes/0001/class.txt
         classes/0001/methods.txt
         classes/0001/method_semantics.json
+        classes/0001/method_debug_info.json
         classes/0001/annotations.json (if present)
         classes/0001/java_like.txt
         classes/0001/dalvik.txt
@@ -78,7 +79,19 @@ typed handlers and catch-all handler addresses in 16-bit code units.
 annotation **type descriptors, visibility and encoded element counts**;
 it does not decode annotation values or reproduce assembly-ready directives.
 Malformed metadata is reported as partial, independently of other method
-decoding. `REPORT.json` includes source APK SHA-256, detected
+decoding.
+
+The new `method_debug_info.json` contains DEX `debug_info_item` output
+when present: parameter names, source line positions in 16-bit code-unit
+offsets, source-file changes, prologue/epilogue flags, and local variable
+names, types, signatures and lifetimes (`DBG_START_LOCAL`,
+`DBG_END_LOCAL`, `DBG_RESTART_LOCAL`). Debug streams that are stripped or
+missing are **unavailable**, never reconstructed with invented names or lines.
+Malformed or truncated streams preserve partial coverage with warnings
+and unknown range ends. Java-like and Dalvik text previews show a bounded
+subset of the available hints. They remain non-compilable and non-assemblable.
+
+`REPORT.json` includes source APK SHA-256, detected
 framework, decoded DEX/class/method counts, resource inventory,
 partial-results flag and warnings.
 
@@ -113,9 +126,12 @@ may not be decoded.
   handler, 160 indexed references and a 50,000-instruction inspection cap.
 - Per annotation directory: up to 64 owners per kind, 32 annotation types
   per set and 32 parameter positions per method. Partial flags mark limits.
+- Per DEX debug stream: 128 KiB, 5,000 opcodes, 512 line positions,
+  256 local ranges and 255 parameters; invalid offsets/registers are
+  reported rather than followed outside the method.
 - Source ZIP at most 24 MiB; SAF writer enforces a 48 MiB expanded
   data cap and 900-file cap.
-- Invalid class/field/exception/annotation metadata is reported while
+- Invalid class/field/exception/annotation/debug metadata is reported while
   independently decodable methods remain exportable. Field ID ownership is checked.
 - Large or unsupported methods/resources are skipped with diagnostics;
   incomplete analysis is not silently called complete.
@@ -140,5 +156,7 @@ See \`test/source_recovery_framework_test.dart\`,
 \`test/dex_class_metadata_inspector_test.dart\`,
 \`test/dex_method_semantics_inspector_test.dart\`, and
 \`test/dex_class_annotation_inspector_test.dart\` for regression tests.
+New regression coverage: `test/dex_debug_info_inspector_test.dart` and
+`test/source_recovery_debug_export_test.dart`.
 Future work includes more faithful Smali, deeper DEX/ELF decompilation,
 full resource recovery and a verified buildable project scaffold.
