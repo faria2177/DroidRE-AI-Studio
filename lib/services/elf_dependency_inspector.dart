@@ -239,7 +239,9 @@ class ElfDependencyInspector {
           }
           final relative = straddr - segment.vaddr;
           if (relative > segment.fileSize ||
-              strsz > segment.fileSize - relative) continue;
+              strsz > segment.fileSize - relative) {
+            continue;
+          }
           stringsOffset = segment.offset + relative;
           stringsLength = strsz;
           break;
