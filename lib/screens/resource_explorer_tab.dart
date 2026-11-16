@@ -4,6 +4,7 @@ import '../models/apk_report.dart';
 import '../services/resource_inspector.dart';
 import '../services/arsc_reference_resolver.dart';
 import '../services/arsc_style_resolver.dart';
+import '../services/arsc_inherited_style_inspector.dart';
 
 class ResourceExplorerTab extends StatefulWidget {
   const ResourceExplorerTab({super.key, required this.report,
@@ -202,6 +203,70 @@ class _CompiledTableViewer extends StatefulWidget {
 class _CompiledTableViewerState extends State<_CompiledTableViewer> {
   String query = '';
 
+  void _showStyleComparison(
+      BuildContext context, ArscInheritedStyleReport report) {
+    showDialog<void>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Inherited style attribute preview'),
+        content: SizedBox(
+          width: 660,
+          height: 470,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text('${report.attributes.length} raw attribute IDs · '
+                  'chain: ${report.trace.status.name}'
+                  '${report.partial ? ' · partial preview' : ''}'),
+              const SizedBox(height: 6),
+              SelectableText(report.trace.description),
+              if (report.warnings.isNotEmpty) ...[
+                const SizedBox(height: 6),
+                Text(report.warnings.join(' · ')),
+              ],
+              const Padding(
+                padding: EdgeInsets.symmetric(vertical: 8),
+                child: Text('Root-to-child decoded map precedence only. '
+                    'Not device-selected effective theme values; unresolved '
+                    'references, overlays and framework attributes remain raw.'),
+              ),
+              Expanded(
+                child: report.attributes.isEmpty
+                    ? const Center(child: Text('No known map attributes'))
+                    : ListView.builder(
+                        itemCount: report.attributes.length,
+                        itemBuilder: (context, index) {
+                          final item = report.attributes[index];
+                          return ListTile(
+                            dense: true,
+                            title: SelectableText(
+                              '${item.label} = ${item.value}'),
+                            subtitle: SelectableText([
+                              '${item.kind.name} · from ${item.sourceName}',
+                              if (item.shadowedValue != null)
+                                'Shadows ${item.shadowedSource}: '
+                                    '${item.shadowedValue}',
+                              if (item.kind == ArscStyleAttributeKind.uncertain)
+                                'A closer truncated bag may contain '
+                                    'an unseen override',
+                            ].join('\n')),
+                          );
+                        },
+                      ),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('Close'),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final summary = widget.summary;
@@ -216,7 +281,12 @@ class _CompiledTableViewerState extends State<_CompiledTableViewer> {
       (styles.trace(entry)?.description.toLowerCase().contains(lowerQuery) ?? false) ||
       (entry.bag?.items.any((item) =>
           styles.attributeLabel(item.nameId).toLowerCase().contains(lowerQuery) ||
-          item.value.toLowerCase().contains(lowerQuery)) ?? false)).toList();
+          item.value.toLowerCase().contains(lowerQuery)) ?? false) ||
+      (ArscInheritedStyleInspector.inspect(entry, styles)
+          ?.attributes.any((item) =>
+              item.label.toLowerCase().contains(lowerQuery) ||
+              item.value.toLowerCase().contains(lowerQuery)) ?? false)
+    ).toList();
 
     return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
       Text('Packages: ${summary.packageCount} · '
@@ -248,8 +318,9 @@ class _CompiledTableViewerState extends State<_CompiledTableViewer> {
         child: Text('References and style-parent chains are traced within '
           'decoded entries only. Attribute labels are shown only when an '
           '@attr entry is present. Missing parents may exist outside this '
-          'preview; configuration selection, effective theme merging and '
-          'overlays remain unsupported.'),
+          'preview. Tap a style comparison icon to inspect known raw '
+          'attribute precedence. Runtime theme merging, device configuration '
+          'selection and overlays remain unsupported.'),
       ),
       Expanded(child: matches.isEmpty
         ? const Center(child: Text('No matching decoded values'))
@@ -259,10 +330,20 @@ class _CompiledTableViewerState extends State<_CompiledTableViewer> {
               final entry = matches[index];
               final reference = resolver.trace(entry);
               final style = styles.trace(entry);
+              final inheritance =
+                  ArscInheritedStyleInspector.inspect(entry, styles);
               return ListTile(
                 dense: true,
                 title: SelectableText('${entry.idHex}  ${entry.name}',
                   style: const TextStyle(fontFamily: 'monospace')),
+                trailing: inheritance == null
+                    ? null
+                    : IconButton(
+                        tooltip: 'Compare inherited style attributes',
+                        icon: const Icon(Icons.compare_arrows),
+                        onPressed: () =>
+                            _showStyleComparison(context, inheritance),
+                      ),
                 subtitle: SelectableText([
                   '${entry.value}  (config chunk ${entry.config})',
                   if (reference != null)
@@ -270,6 +351,9 @@ class _CompiledTableViewerState extends State<_CompiledTableViewer> {
                   if (style != null)
                     'Style parent chain (${style.status.name}): '
                       '${style.description}',
+                  if (inheritance != null)
+                    '${inheritance.attributes.length} compared attribute IDs'
+                    '${inheritance.partial ? ' · partial preview' : ''}',
                   if (entry.bag != null) ...[
                     'Bag parent: ${entry.bag!.parentHex} · '
                       '${entry.bag!.totalItems} raw map items'
