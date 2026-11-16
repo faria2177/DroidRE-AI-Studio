@@ -75,7 +75,9 @@ class ArscInheritedStyleInspector {
     int depthLimit = ArscStyleResolver.maxDepth,
   }) {
     final trace = resolver.trace(entry, depthLimit: depthLimit);
-    if (trace == null) return null;
+    if (trace == null) {
+      return null;
+    }
 
     final current = <int, _KnownAttribute>{};
     final duplicated = <int>{};
