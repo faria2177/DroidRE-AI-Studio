@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import '../models/apk_report.dart';
 import '../services/dex_inspector.dart';
 import '../services/dex_call_graph.dart';
+import '../services/dex_method_pager.dart';
 import '../services/elf_inspector.dart';
 
 class DexBrowserTab extends StatefulWidget {
@@ -427,27 +428,13 @@ class _DexBrowserTabState extends State<DexBrowserTab> {
                   itemCount: matches.length,
                   itemBuilder: (context, index) {
                     final item = matches[index];
-                    return Card(child: ExpansionTile(
-                      title: Text(item.name),
-                      subtitle: Text('${item.methodCount} declared methods'),
-                      children: [
-                        for (final method in item.details)
-                          ListTile(
-                            dense: true,
-                            title: Text(method.name),
-                            subtitle: Text(method.prototype),
-                            trailing: const Icon(Icons.code),
-                            onTap: () => _showMethod(method, selectedFile, summary),
-                          ),
-                        for (final name in item.methods.skip(item.details.length))
-                          ListTile(dense: true, title: Text(name),
-                            subtitle: const Text('Name only (detail preview limit reached)')),
-                        if (item.methodCount > item.methods.length)
-                          ListTile(title: Text('First ${item.methods.length} methods shown')),
-                        if (item.methodCount == 0)
-                          const ListTile(title: Text('No declared methods')),
-                      ],
-                    ));
+                    return _DexClassMethodTile(
+                      key: ValueKey('${widget.report.id}:$selectedFile:${item.classDefIndex}'),
+                      klass: item,
+                      apkPath: widget.report.localPath,
+                      dexFile: selectedFile,
+                      onOpen: (method) => _showMethod(method, selectedFile, summary),
+                    );
                   },
                 )),
               ]);
@@ -456,6 +443,117 @@ class _DexBrowserTabState extends State<DexBrowserTab> {
       ],
     );
   }
+}
+
+
+class _DexClassMethodTile extends StatefulWidget {
+  const _DexClassMethodTile({
+    super.key,
+    required this.klass,
+    required this.apkPath,
+    required this.dexFile,
+    required this.onOpen,
+  });
+
+  final DexClassSummary klass;
+  final String apkPath;
+  final String dexFile;
+  final ValueChanged<DexMethodSummary> onOpen;
+
+  @override
+  State<_DexClassMethodTile> createState() => _DexClassMethodTileState();
+}
+
+class _DexClassMethodTileState extends State<_DexClassMethodTile> {
+  late List<DexMethodSummary> _methods;
+  bool _loading = false;
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    _methods = List<DexMethodSummary>.of(widget.klass.details);
+  }
+
+  @override
+  void didUpdateWidget(covariant _DexClassMethodTile oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.apkPath != widget.apkPath ||
+        oldWidget.dexFile != widget.dexFile ||
+        oldWidget.klass.classDefIndex != widget.klass.classDefIndex) {
+      _methods = List<DexMethodSummary>.of(widget.klass.details);
+      _loading = false;
+      _error = null;
+    }
+  }
+
+  Future<void> _loadMore() async {
+    if (_loading || _methods.length >= widget.klass.methodCount) return;
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+    try {
+      final page = await DexMethodPager.loadEntry(
+        widget.apkPath,
+        widget.dexFile,
+        widget.klass,
+        start: _methods.length,
+      );
+      if (!mounted) return;
+      if (page.isEmpty) {
+        setState(() => _error = 'No additional methods were returned.');
+      } else {
+        setState(() => _methods.addAll(page));
+      }
+    } catch (error) {
+      if (mounted) setState(() => _error = '$error');
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) => Card(
+    child: ExpansionTile(
+      title: Text(widget.klass.name),
+      subtitle: Text(
+        '${_methods.length} of ${widget.klass.methodCount} method details loaded',
+      ),
+      children: [
+        for (final method in _methods)
+          ListTile(
+            dense: true,
+            title: Text(method.name),
+            subtitle: Text(method.prototype),
+            trailing: const Icon(Icons.code),
+            onTap: () => widget.onOpen(method),
+          ),
+        if (_error != null)
+          ListTile(
+            leading: const Icon(Icons.error_outline),
+            title: Text(_error!),
+          ),
+        if (_methods.length < widget.klass.methodCount)
+          ListTile(
+            leading: _loading
+                ? const SizedBox(
+                    width: 24,
+                    height: 24,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Icon(Icons.expand_more),
+            title: Text(_methods.isEmpty
+                ? 'Load method details'
+                : 'Load more methods'),
+            subtitle: const Text('Read the next 100 methods on demand'),
+            onTap: _loading ? null : () => _loadMore(),
+          ),
+        if (widget.klass.methodCount == 0)
+          const ListTile(title: Text('No declared methods')),
+      ],
+    ),
+  );
 }
 
 class ElfBrowserTab extends StatefulWidget {

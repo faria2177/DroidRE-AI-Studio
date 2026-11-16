@@ -9,7 +9,7 @@ Do not mistake a visible tool card for a completed reverse-engineering engine.
 | XAPK/APKS/APKM/AAB | Limited | Lists outer ZIP contents only; split decoding not yet available |
 | SHA-256 / file inventory | Implemented | Archive entry list is capped at 10,000 for UI |
 | AndroidManifest | Limited | Common binary XML/text attributes, not full resource resolution |
-| DEX files | Basic inspector + method details | DEX 035–040 class/method names, prototypes, flags, registers and first 64 raw code units as fallback |
+| DEX files | Basic inspector + on-demand method pages | DEX 035–040 class/method names, prototypes, flags, registers and first 64 raw code units as fallback; load later methods in 100-method pages |
 | Dalvik instructions | Implemented for standard opcodes | On-demand DEX 035–040 opcode, operands, register/branch decoding and switch/array payload boundaries; not verified Smali |
 | DEX symbols | Partial resolution | Resolve string/type/prototype/method/field identifiers to descriptors; call-site and method-handle internals remain symbolic |
 | Cross-reference navigation | Bounded method XREFs | Browse outgoing referenced methods and scan indexed method bodies for incoming callers; not a complete whole-APK call graph |
@@ -42,7 +42,7 @@ Do not mistake a visible tool card for a completed reverse-engineering engine.
   methods decode on demand up to 100,000 code units and display up to 20,000
   instructions. Reserved, optimized/odex and unknown opcodes stop disassembly
   without guessing instruction boundaries. No semantic type/control-flow verification.
-- Method detail previews in the class list are bounded to 20,000 per DEX file.
+- Initial method detail previews are bounded to 20,000 per DEX file, with up to 200 names/details per class. Additional class method details can be loaded on demand in 100-method pages; this does not remove the existing XREF or call-graph scan limits.
 - Incoming XREF scans inspect at most 5,000 indexed methods / 1,000,000 code units and list at most 100 matches. Unsupported Dalvik code is skipped and a count shown; references outside the selected DEX, missing or unindexed methods, and virtual dispatch remain unresolved.
 - Multi-DEX scan is **not** a full call graph: it prioritizes the selected DEX, inspects at most 24 DEX files / 6,000 indexed methods / 1,500,000 code units and records up to 18,000 unique static invocation edges. Reflection, JNI calls, dynamically loaded DEX, virtual dispatch targets and code beyond bounds remain unresolved.
 - Java-like pseudocode is approximate and not compilable. It preserves Dalvik registers, original offsets and comments for instructions it cannot translate.
