@@ -86,7 +86,9 @@ class ArscConfiguration {
       required int base,
       required bool Function(int code) isValid,
     }) {
-      if (first == 0 && second == 0) return null;
+      if (first == 0 && second == 0) {
+        return null;
+      }
       if ((first & 0x80) != 0) {
         final codes = <int>[
           (second & 0x1f) + base,
@@ -136,11 +138,15 @@ class ArscConfiguration {
       required bool Function(int code) valid,
       required int minLength,
     }) {
-      if (size < start + length) return null;
+      if (size < start + length) {
+        return null;
+      }
       final codes = <int>[
         for (var i = 0; i < length; i++) byte(start + i),
       ];
-      if (codes.every((code) => code == 0)) return null;
+      if (codes.every((code) => code == 0)) {
+        return null;
+      }
       final end = codes.indexOf(0);
       final count = end < 0 ? length : end;
       if (count < minLength ||
