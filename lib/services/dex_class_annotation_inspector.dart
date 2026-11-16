@@ -1,19 +1,24 @@
 import 'package:flutter/foundation.dart';
 
+import 'dex_annotation_value_reader.dart';
 import 'dex_inspector.dart';
 import 'dex_symbol_index.dart';
 
 @immutable
 class DexAnnotationPreview {
-  const DexAnnotationPreview(this.type, this.visibility, this.elementCount);
+  const DexAnnotationPreview(this.type, this.visibility, this.elementCount,
+      {this.elements = const [], this.valuesDecoded = false});
   final String type;
   final String visibility;
   final int elementCount;
+  final List<Map<String, Object?>> elements;
+  final bool valuesDecoded;
   Map<String, Object?> toJson() => {
     'type': type,
     'visibility': visibility,
     'encodedElementCount': elementCount,
-    'valuesDecoded': false,
+    'valuesDecoded': valuesDecoded,
+    'elements': elements,
   };
 }
 
@@ -43,13 +48,13 @@ class DexClassAnnotationReport {
     'targets': [for (final t in targets) t.toJson()],
     'warnings': warnings,
     'partial': partial,
-    'note': 'Type/visibility/element-count preview only. Annotation '
-        'values and encoded arguments are not decoded.',
+    'note': 'Bounded encoded annotation value preview. Symbolic references '
+        'are not evaluated; malformed or oversized values are partial.',
   };
 }
 
 /// Read-only annotation_directory and annotation_set inspection.
-/// Parses type indices, visibility and element counts; not encoded values.
+/// Parses type indices, visibility and bounded encoded element values.
 class DexClassAnnotationInspector {
   const DexClassAnnotationInspector._();
   static const maxOwnersPerKind = 64;
@@ -60,6 +65,7 @@ class DexClassAnnotationInspector {
     Uint8List dex, DexClassSummary klass,
   ) {
     final symbols = DexSymbolIndex(dex);
+    final valueReader = DexAnnotationValueReader(dex, symbols);
     final classCount = symbols.u32(96);
     final classDefsAt = symbols.u32(100);
     if (classCount > 100000 ||
@@ -136,7 +142,18 @@ class DexClassAnnotationInspector {
         final pos = <int>[off + 1];
         final type = symbols.typeAt(uleb(pos[0], pos));
         final elements = uleb(pos[0], pos);
-        result.add(DexAnnotationPreview(type, visibility, elements));
+        try {
+          final decoded = valueReader.decodeElements(pos[0], elements);
+          result.add(DexAnnotationPreview(type, visibility, elements,
+              elements: decoded.elements, valuesDecoded: decoded.complete));
+          if (!decoded.complete) {
+            warn('Annotation values limited to '
+                '${DexAnnotationValueReader.maxElements} of $elements');
+          }
+        } on FormatException catch (error) {
+          warn('Annotation values incomplete: $error');
+          result.add(DexAnnotationPreview(type, visibility, elements));
+        }
       }
       return result;
     }

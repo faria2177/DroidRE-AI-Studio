@@ -28,3 +28,20 @@ Uint8List makeDexWithAnnotationTypes({bool invalidSet = false}) {
   u32(9094, 9050);
   return bytes;
 }
+
+/// Two encoded elements with a string and an array of int/boolean values.
+/// Reuses the same annotation set for class, method and parameter targets.
+Uint8List makeDexWithAnnotationValues({bool invalidValue = false}) {
+  final bytes = makeDexWithAnnotationTypes();
+  bytes[9062] = 2; // elements_size
+  bytes[9063] = 1; // name_idx: method0
+  bytes[9064] = 0x17; // VALUE_STRING
+  bytes[9065] = 2; // string_idx: method1
+  bytes[9066] = 3; // name_idx: method2
+  bytes[9067] = invalidValue ? 0xff : 0x1c; // VALUE_ARRAY
+  bytes[9068] = 2; // array count
+  bytes[9069] = 0x04; // VALUE_INT
+  bytes[9070] = 42;
+  bytes[9071] = 0x3f; // VALUE_BOOLEAN true
+  return bytes;
+}
