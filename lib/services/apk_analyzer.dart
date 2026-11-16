@@ -11,6 +11,8 @@ import 'android_manifest_parser.dart';
 class ApkAnalyzer {
   const ApkAnalyzer._();
 
+  static const maxArchiveBytes = 1024 * 1024 * 1024;
+
   static Future<ApkReport> inspect({
     required String path,
     required String displayName,
@@ -19,7 +21,7 @@ class ApkAnalyzer {
     final file = File(path);
     final length = await file.length();
     if (length < 4) throw const FormatException('File is too small');
-    if (length > 1024 * 1024 * 1024) {
+    if (length > maxArchiveBytes) {
       throw const FormatException('Files over 1 GiB need the worker engine');
     }
     final hash = await sha256.bind(file.openRead()).first;
