@@ -3,11 +3,15 @@ import 'package:flutter/foundation.dart';
 
 @immutable
 class ArscValue {
-  const ArscValue(this.id, this.name, this.value, this.config);
+  const ArscValue(this.id, this.name, this.value, this.config,
+      {this.dataType, this.rawData});
   final int id;
   final String name;
   final String value;
   final int config;
+  /// Original Android Res_value type and data (not a resolved reference).
+  final int? dataType;
+  final int? rawData;
   String get idHex => '0x${id.toRadixString(16).padLeft(8, '0')}';
 }
 
@@ -280,6 +284,8 @@ class ArscValueReader {
             '@$typeName/$key',
             value,
             config,
+            dataType: kind,
+            rawData: data,
           ));
         }
         if (truncated) break;

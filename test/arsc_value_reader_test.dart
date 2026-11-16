@@ -36,6 +36,8 @@ Uint8List resourceTableWithValue({
   String value = 'Hello',
   int typeFlags = 0,
   bool complex = false,
+  int valueKind = 3,
+  int rawValue = 0,
 }) {
   final global = pool([value]);
   final types = pool(['string']);
@@ -64,8 +66,8 @@ Uint8List resourceTableWithValue({
   t16(34, complex ? 1 : 0);
   t32(36, 0); // key string index
   t16(40, 8); // Res_value size
-  type[43] = 3; // string
-  t32(44, 0); // global pool string index
+  type[43] = valueKind;
+  t32(44, rawValue); // raw Res_value (string index or reference)
 
   final packageSize = 288 + types.length + keys.length + type.length;
   final pkg = Uint8List(packageSize);
@@ -109,6 +111,18 @@ void main() {
     final summary = ResourceInspector.inspectTableBytes(bytes);
     expect(summary.values.single.value, 'বাংলা');
     expect(summary.packages.single, contains('com.demo'));
+  });
+
+  test('preserves raw reference ID without claiming it is resolved', () {
+    final report = ArscValueReader.parse(resourceTableWithValue(
+      valueKind: 1,
+      rawValue: 0x7f010012,
+    ));
+    final item = report.values.single;
+    expect(item.id, 0x7f010000);
+    expect(item.value, '@0x7f010012');
+    expect(item.dataType, 1);
+    expect(item.rawData, 0x7f010012);
   });
 
   test('handles offset16 and sparse entry indexes', () {
