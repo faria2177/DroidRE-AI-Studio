@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:file_picker/file_picker.dart';
 
 import '../models/apk_report.dart';
 import '../services/ai_chat_service.dart';
 import '../services/google_account_service.dart';
 import '../services/studio_controller.dart';
+import '../services/source_recovery_bundle.dart';
 import 'binary_explorer_tabs.dart';
 import 'resource_explorer_tab.dart';
 
@@ -80,7 +82,11 @@ class _StudioShellState extends State<StudioShell> {
             key: ValueKey(_aiDraft),
             initialPrompt: _aiDraft,
           ),
-          ToolsScreen(onImport: _import, onAnalyze: () => setState(() => _tab = 2)),
+          ToolsScreen(
+            report: widget.controller.active,
+            onImport: _import,
+            onAnalyze: () => setState(() => _tab = 2),
+          ),
         ];
         return Scaffold(
           appBar: AppBar(
@@ -846,10 +852,73 @@ class _AiStudioScreenState extends State<AiStudioScreen> {
   }
 }
 
-class ToolsScreen extends StatelessWidget {
-  const ToolsScreen({super.key, required this.onImport, required this.onAnalyze});
+class ToolsScreen extends StatefulWidget {
+  const ToolsScreen({
+    super.key,
+    required this.onImport,
+    required this.onAnalyze,
+    this.report,
+  });
+
   final VoidCallback onImport;
   final VoidCallback onAnalyze;
+  final ApkReport? report;
+
+  @override
+  State<ToolsScreen> createState() => _ToolsScreenState();
+}
+
+class _ToolsScreenState extends State<ToolsScreen> {
+  bool exporting = false;
+  String exportStatus = '';
+
+  Future<void> _exportSourcePreview() async {
+    final selected = widget.report;
+    if (selected == null || exporting) {
+      return;
+    }
+    setState(() {
+      exporting = true;
+      exportStatus = '';
+    });
+    try {
+      final bundle = await SourceRecoveryBundle.fromProject(selected);
+      if (!mounted) {
+        return;
+      }
+      final cleanName = selected.packageLabel
+          .replaceAll(RegExp(r'[^a-zA-Z0-9_-]'), '_');
+      final name = cleanName.length > 48
+          ? cleanName.substring(0, 48) : cleanName;
+      final filename = '${name.isEmpty ? 'recovered-app' : name}'
+          '-source-preview.zip';
+      final saved = await FilePicker.platform.saveFile(
+        dialogTitle: 'Save read-only source recovery bundle',
+        fileName: filename,
+        bytes: bundle.zipBytes,
+      );
+      if (!mounted) {
+        return;
+      }
+      if (saved == null) {
+        setState(() => exportStatus = 'Export cancelled');
+      } else {
+        setState(() => exportStatus =
+            'Saved $filename · ${bundle.dexFilesVisited} DEX files, '
+            '${bundle.classesExported} classes, '
+            '${bundle.methodsExported} methods'
+            '${bundle.partial ? ' · PARTIAL (see REPORT.json)' : ''}');
+      }
+    } catch (error) {
+      if (mounted) {
+        setState(() => exportStatus = 'Source export failed: $error');
+      }
+    } finally {
+      if (mounted) {
+        setState(() => exporting = false);
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -864,28 +933,75 @@ class ToolsScreen extends StatelessWidget {
     return ListView(
       padding: const EdgeInsets.all(18),
       children: [
-        Text('Tools and Workflows', style: Theme.of(context).textTheme.headlineSmall),
+        Text('Tools and Workflows',
+            style: Theme.of(context).textTheme.headlineSmall),
         const SizedBox(height: 10),
         Card(
           child: ListTile(
             leading: const Icon(Icons.file_open),
             title: const Text('Import an APK'),
-            subtitle: const Text('Working: read-only local archive and manifest analysis'),
+            subtitle: const Text('Working: read-only local archive and '
+                'manifest analysis'),
             trailing: const Icon(Icons.chevron_right),
-            onTap: onImport,
+            onTap: widget.onImport,
           ),
         ),
         Card(
           child: ListTile(
             leading: const Icon(Icons.inventory),
             title: const Text('Open APK Inspector'),
-            subtitle: const Text('Working: files, permissions, DEX and .so inventory'),
+            subtitle: const Text('Working: files, permissions, DEX and '
+                '.so inventory'),
             trailing: const Icon(Icons.chevron_right),
-            onTap: onAnalyze,
+            onTap: widget.onAnalyze,
+          ),
+        ),
+        const SizedBox(height: 12),
+        Text('Source Recovery — first milestone',
+            style: Theme.of(context).textTheme.titleMedium),
+        Card(
+          child: Padding(
+            padding: const EdgeInsets.all(14),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Text('Offline Source Recovery Preview ZIP',
+                    style: Theme.of(context).textTheme.titleMedium),
+                const SizedBox(height: 5),
+                Text(widget.report == null
+                    ? 'Import an APK first to enable this feature.'
+                    : 'Selected APK: ${widget.report!.fileName}'),
+                const SizedBox(height: 6),
+                const Text('Exports a bounded DEX class/method inventory, '
+                    'Dalvik inspection text, non-compilable Java-like '
+                    'pseudocode, and small raw/decoded resource previews. '
+                    'This is NOT original source, rebuildable Smali, '
+                    'or a compilable Android Studio project.'),
+                const SizedBox(height: 12),
+                FilledButton.icon(
+                  onPressed: widget.report == null || exporting
+                      ? null : _exportSourcePreview,
+                  icon: exporting
+                      ? const SizedBox(
+                          width: 18, height: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.folder_zip_outlined),
+                  label: Text(exporting
+                      ? 'Recovering locally...' : 'Export Source Preview ZIP'),
+                ),
+                if (exportStatus.isNotEmpty)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 10),
+                    child: SelectableText(exportStatus),
+                  ),
+              ],
+            ),
           ),
         ),
         const SizedBox(height: 14),
-        Text('Roadmap — not implemented yet', style: Theme.of(context).textTheme.titleMedium),
+        Text('Roadmap — not implemented yet',
+            style: Theme.of(context).textTheme.titleMedium),
         for (final tool in planned)
           Card(
             child: ListTile(

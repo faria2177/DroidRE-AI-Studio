@@ -29,6 +29,15 @@ An **Android-first Flutter project** for offline APK inspection and optional AI 
 
 See [Feature status](docs/FEATURE_STATUS.md) for precise limitations.
 
+## On-device Source Recovery Preview
+
+From **Tools**, users may export a **bounded, read-only ZIP** containing
+DEX class and method inventories, Dalvik inspection text, Java-like
+pseudocode, and small resource previews. This is **not** original source,
+compilable Java, assemblable Smali, or a buildable Android Studio project.
+It operates offline and shows explicit incomplete-coverage warnings.
+See [Source Recovery](docs/SOURCE_RECOVERY.md) for contents and limits.
+
 ## Run locally
 
 Flutter SDK **3.47.4** with a compatible Android SDK/JDK is the initial target.
