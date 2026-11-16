@@ -97,7 +97,7 @@ void main() {
     final csv = document.toCsv();
     expect(csv, startsWith('\uFEFF'));
     expect(csv, contains('"@string/,name"'));
-    expect(csv, contains('"' + "'=1+1"));
+    expect(csv, contains('"\'=1+1'));
     expect(csv, contains('""hello""'));
     expect(csv, contains('\nWorld'));
   });
