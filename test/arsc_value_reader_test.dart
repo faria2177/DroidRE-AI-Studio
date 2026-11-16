@@ -99,6 +99,41 @@ Uint8List resourceTableWithValue({
   return bytes;
 }
 
+
+Uint8List resourceTableWithStyleBag() {
+  final source = resourceTableWithValue(value: 'Blue');
+  // Expand the final ResTable_type chunk from 48 to 72 bytes to hold a
+  // ResTable_map_entry and two ResTable_map records.
+  final result = Uint8List(source.length + 24);
+  result.setRange(0, source.length, source);
+  final d = ByteData.sublistView(result);
+  void u16(int at, int value) => d.setUint16(at, value, Endian.little);
+  void u32(int at, int value) => d.setUint32(at, value, Endian.little);
+  final typeAt = source.length - 48;
+  final packageAt = 12 + pool(['Blue']).length;
+  u32(4, result.length);
+  u32(packageAt + 4, result.length - packageAt);
+  u32(typeAt + 4, 72);
+  u16(typeAt + 32, 16); // ResTable_map_entry size
+  u16(typeAt + 34, 1); // FLAG_COMPLEX
+  u32(typeAt + 36, 0); // key string index
+  u32(typeAt + 40, 0x7f020001); // parent style reference
+  u32(typeAt + 44, 2); // map count
+
+  // Map 0: android:colorAccent -> global string "Blue"
+  u32(typeAt + 48, 0x01010000);
+  u16(typeAt + 52, 8);
+  result[typeAt + 55] = 3;
+  u32(typeAt + 56, 0);
+
+  // Map 1: android:textColor -> boolean true
+  u32(typeAt + 60, 0x01010001);
+  u16(typeAt + 64, 8);
+  result[typeAt + 67] = 0x12;
+  u32(typeAt + 68, 1);
+  return result;
+}
+
 void main() {
   test('resolves compiled ID, type/key and pooled UTF-8 value', () {
     final bytes = resourceTableWithValue(value: 'বাংলা');
@@ -139,6 +174,32 @@ void main() {
       resourceTableWithValue(complex: true));
     expect(result.values, isEmpty);
     expect(result.warnings.join(' '), contains('Complex'));
+  });
+
+  test('decodes bounded style bag map names and typed values', () {
+    final result = ArscValueReader.parse(resourceTableWithStyleBag());
+    expect(result.values, hasLength(1));
+    final style = result.values.single;
+    expect(style.name, '@string/title');
+    expect(style.bag, isNotNull);
+    expect(style.bag!.parentHex, '0x7f020001');
+    expect(style.bag!.totalItems, 2);
+    expect(style.bag!.items.map((item) => item.nameHex),
+        ['0x01010000', '0x01010001']);
+    expect(style.bag!.items.map((item) => item.value),
+        ['Blue', 'true']);
+    expect(style.bag!.truncated, isFalse);
+    expect(result.warnings, isEmpty);
+    expect(ResourceInspector.inspectTableBytes(
+        resourceTableWithStyleBag()).values.single.bag!.items, hasLength(2));
+  });
+
+  test('rejects out-of-bounds style map count', () {
+    final input = resourceTableWithStyleBag();
+    final typeAt = input.length - 72;
+    ByteData.sublistView(input)
+        .setUint32(typeAt + 44, 100000, Endian.little);
+    expect(() => ArscValueReader.parse(input), throwsFormatException);
   });
 
   test('reports bounded results and rejects invalid entry offsets', () {

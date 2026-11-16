@@ -218,7 +218,7 @@ class _CompiledTableViewerState extends State<_CompiledTableViewer> {
       for (final name in summary.packages)
         Text(name, maxLines: 1, overflow: TextOverflow.ellipsis),
       const SizedBox(height: 6),
-      Text('${summary.values.length} simple entries decoded · '
+      Text('${summary.values.length} simple/bag entries decoded · '
            '${summary.scannedSlots} index slots inspected'
            '${summary.valuesTruncated ? ' · partial results' : ''}'),
       const SizedBox(height: 6),
@@ -240,8 +240,9 @@ class _CompiledTableViewerState extends State<_CompiledTableViewer> {
       const Padding(
         padding: EdgeInsets.symmetric(vertical: 6),
         child: Text('Reference chains are traced within the decoded preview '
-          'only. Configuration variants are not automatically selected; '
-          'complex bags and overlays remain unsupported.'),
+          'only. Complex style/array/plural bags show bounded raw map items '
+          'and parent IDs, not resolved theme inheritance or overlays. '
+          'Configuration variants are not automatically selected.'),
       ),
       Expanded(child: matches.isEmpty
         ? const Center(child: Text('No matching decoded values'))
@@ -258,6 +259,13 @@ class _CompiledTableViewerState extends State<_CompiledTableViewer> {
                   '${entry.value}  (config chunk ${entry.config})',
                   if (reference != null)
                     'Reference: ${reference.description}',
+                  if (entry.bag != null) ...[
+                    'Bag parent: ${entry.bag!.parentHex} · '
+                      '${entry.bag!.totalItems} raw map items'
+                      '${entry.bag!.truncated ? ' (preview limited)' : ''}',
+                    for (final item in entry.bag!.items)
+                      '${item.nameHex} = ${item.value}',
+                  ],
                 ].join('\n')),
               );
             },
