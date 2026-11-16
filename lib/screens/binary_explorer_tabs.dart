@@ -9,6 +9,7 @@ import '../services/dex_method_search.dart';
 import '../services/elf_inspector.dart';
 import '../services/elf_symbol_inspector.dart';
 import '../services/elf_dependency_inspector.dart';
+import '../services/elf_section_inspector.dart';
 
 class DexBrowserTab extends StatefulWidget {
   const DexBrowserTab({super.key, required this.report, this.onExplainCode});
@@ -710,6 +711,8 @@ class _ElfBrowserTabState extends State<ElfBrowserTab> {
   Future<ElfSummary>? task;
   Future<ElfSymbolReport>? symbolsTask;
   Future<ElfDependencyReport>? dependencyTask;
+  Future<ElfSectionReport>? sectionsTask;
+  String sectionQuery = '';
   String symbolQuery = '';
   String symbolFilter = 'All';
 
@@ -721,6 +724,8 @@ class _ElfBrowserTabState extends State<ElfBrowserTab> {
       task = null;
       symbolsTask = null;
       dependencyTask = null;
+      sectionsTask = null;
+      sectionQuery = '';
       symbolQuery = '';
       symbolFilter = 'All';
     }
@@ -753,6 +758,8 @@ class _ElfBrowserTabState extends State<ElfBrowserTab> {
           task = null;
           symbolsTask = null;
           dependencyTask = null;
+          sectionsTask = null;
+          sectionQuery = '';
           symbolQuery = '';
           symbolFilter = 'All';
         }),
@@ -786,10 +793,105 @@ class _ElfBrowserTabState extends State<ElfBrowserTab> {
             ? 'Inspect library dependencies' : 'Dependencies loaded / loading'),
       ),
       const SizedBox(height: 8),
-      const Text('ELF32/ELF64 headers, symbol names, dynamic dependencies '
-          '(DT_NEEDED, SONAME, RPATH and RUNPATH). PT_DYNAMIC supports '
-          'stripped ELF binaries without section headers. Read-only; '
-          'no native disassembly or code execution. Limit: 80 MiB per library.'),
+      OutlinedButton.icon(
+        onPressed: sectionsTask == null ? () => setState(() {
+          sectionsTask = ElfSectionInspector.inspectEntry(
+              widget.report.localPath, selectedFile);
+        }) : null,
+        icon: const Icon(Icons.view_list_outlined),
+        label: Text(sectionsTask == null
+            ? 'Inspect ELF sections' : 'Sections loaded / loading'),
+      ),
+      const SizedBox(height: 8),
+      const Text('ELF32/ELF64 headers, sections, symbol names and '
+          'DT_NEEDED, SONAME, RPATH/RUNPATH. Sections are metadata only; '
+          'stripped binaries may omit them. Read-only, no native '
+          'disassembly or code execution. Limit: 80 MiB per library.'),
+      if (sectionsTask != null)
+        FutureBuilder<ElfSectionReport>(
+          future: sectionsTask,
+          builder: (context, snapshot) {
+            if (snapshot.hasError) {
+              return _ErrorPanel(
+                error: 'ELF section inspection failed: ${snapshot.error}',
+                onRetry: () => setState(() => sectionsTask = null),
+              );
+            }
+            if (!snapshot.hasData) {
+              return const Padding(
+                padding: EdgeInsets.all(24),
+                child: Center(child: CircularProgressIndicator()),
+              );
+            }
+            final report = snapshot.data!;
+            final query = sectionQuery.toLowerCase();
+            final matches = report.sections.where((section) {
+              return section.name.toLowerCase().contains(query) ||
+                  section.type.toLowerCase().contains(query) ||
+                  section.flags.join(' ').toLowerCase().contains(query) ||
+                  section.offsetHex.toLowerCase().contains(query);
+            }).toList();
+
+            return Card(
+              child: Padding(
+                padding: const EdgeInsets.all(12),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Text('ELF sections',
+                        style: Theme.of(context).textTheme.titleMedium),
+                    const SizedBox(height: 6),
+                    Text('${report.sections.length} of '
+                         '${report.totalSections} headers decoded'
+                         '${report.truncated ? ' · partial results' : ''}'),
+                    if (report.warnings.isNotEmpty)
+                      Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 6),
+                        child: Text(report.warnings.join(' · ')),
+                      ),
+                    const SizedBox(height: 8),
+                    TextField(
+                      decoration: const InputDecoration(
+                        labelText: 'Search section name, type or flags',
+                        prefixIcon: Icon(Icons.search),
+                        border: OutlineInputBorder(),
+                      ),
+                      onChanged: (value) =>
+                          setState(() => sectionQuery = value),
+                    ),
+                    const SizedBox(height: 8),
+                    SizedBox(
+                      height: 360,
+                      child: matches.isEmpty
+                          ? const Center(child: Text('No matching sections'))
+                          : ListView.builder(
+                              itemCount: matches.length,
+                              itemBuilder: (context, index) {
+                                final section = matches[index];
+                                return ListTile(
+                                  dense: true,
+                                  title: SelectableText(
+                                    '[#${section.index}] ${section.name} '
+                                    '(${section.type})',
+                                  ),
+                                  subtitle: SelectableText(
+                                    'Size: ${section.size} bytes · '
+                                    'Offset: ${section.offsetHex} · '
+                                    'VA: ${section.addressHex}\n'
+                                    'Flags: ${section.flags.isEmpty ? 'none' : section.flags.join(', ')} · '
+                                    'Alignment: ${section.alignment} · '
+                                    '${section.fileBacked ? 'file-backed' : 'no file payload'}',
+                                  ),
+                                );
+                              },
+                            ),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        ),
       if (dependencyTask != null)
         FutureBuilder<ElfDependencyReport>(
           future: dependencyTask,
