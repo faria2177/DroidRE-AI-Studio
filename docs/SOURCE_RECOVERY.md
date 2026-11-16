@@ -76,8 +76,8 @@ references (string/type/field/method/polymorphic prototype, with unresolved
 dynamic IDs explicitly labeled) and DEX `code_item` try/catch ranges,
 typed handlers and catch-all handler addresses in 16-bit code units.
 `ANNOTATIONS_INDEX.json` records class, field, method and parameter
-annotation **type descriptors, visibility and encoded element counts**;
-it does not decode annotation values or reproduce assembly-ready directives.
+annotation **type descriptors, visibility, encoded element counts and bounded decoded values**;
+annotation values include symbolic DEX pool references and basic nested values; they are not evaluated or assembly-ready directives.
 Malformed metadata is reported as partial, independently of other method
 decoding.
 
@@ -125,7 +125,11 @@ may not be decoded.
 - Per method: 128 try regions, 256 handler groups, 64 typed catches per
   handler, 160 indexed references and a 50,000-instruction inspection cap.
 - Per annotation directory: up to 64 owners per kind, 32 annotation types
-  per set and 32 parameter positions per method. Partial flags mark limits.
+  per set and 32 parameter positions per method. Encoded annotation value
+  previews are limited to 16 named elements, 16 nested items, nesting depth
+  4, 128 value nodes and 8 KiB per annotation. Malformed values are marked
+  partial and never executed. Numeric values are exported as decimal strings
+  to preserve 64-bit precision. Partial flags mark limits.
 - Per DEX debug stream: 128 KiB, 5,000 opcodes, 512 line positions,
   256 local ranges and 255 parameters; invalid offsets/registers are
   reported rather than followed outside the method.

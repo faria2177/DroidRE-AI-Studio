@@ -25,8 +25,59 @@ void main() {
       expect(target.annotations.single.type, 'Lcom/demo/Many;');
       expect(target.annotations.single.visibility, 'runtime');
       expect(target.annotations.single.elementCount, 0);
-      expect(target.annotations.single.toJson()['valuesDecoded'], isFalse);
+      expect(target.annotations.single.toJson()['valuesDecoded'], isTrue);
     }
+  });
+
+  test('decodes string, nested array, integer and boolean values', () {
+    final dex = makeDexWithAnnotationValues();
+    final cls = DexInspector.inspectBytes(dex).classes.single;
+    final report = DexClassAnnotationInspector.inspectBytes(dex, cls);
+    expect(report.partial, isFalse);
+    final item = report.targets.first.annotations.single;
+    expect(item.elementCount, 2);
+    expect(item.valuesDecoded, isTrue);
+    expect(item.elements[0]['name'], 'method0');
+    expect(item.elements[0]['value'], {
+      'kind': 'string', 'index': 2, 'value': 'method1',
+    });
+    expect(item.elements[1]['name'], 'method2');
+    final array = item.elements[1]['value'] as Map<String, Object?>;
+    expect(array['kind'], 'array');
+    expect(array['items'], [
+      {'kind': 'int', 'value': '42'},
+      {'kind': 'boolean', 'value': true},
+    ]);
+  });
+
+  test('bad encoded values are partial and methods remain exportable', () {
+    final dex = makeDexWithAnnotationValues(invalidValue: true);
+    final cls = DexInspector.inspectBytes(dex).classes.single;
+    final report = DexClassAnnotationInspector.inspectBytes(dex, cls);
+    expect(report.partial, isTrue);
+    expect(report.warnings.join(' '), contains('Annotation values'));
+    expect(report.targets.first.annotations.single.valuesDecoded, isFalse);
+    final bundle = SourceRecoveryBundle.fromArchive(Archive()
+      ..addFile(ArchiveFile.bytes('classes.dex', dex)));
+    expect(bundle.methodsExported, 205);
+    expect(bundle.partial, isTrue);
+  });
+
+  test('source archive exports decoded annotation values', () {
+    final bundle = SourceRecoveryBundle.fromArchive(Archive()
+      ..addFile(ArchiveFile.bytes(
+          'classes.dex', makeDexWithAnnotationValues())));
+    final zip = ZipDecoder().decodeBytes(bundle.zipBytes, throwOnError: true);
+    final file = zip.files.singleWhere((entry) =>
+        entry.name == 'recovered/dex_01/classes/0001/annotations.json');
+    final report = jsonDecode(utf8.decode(file.readBytes()!))
+        as Map<String, dynamic>;
+    final targets = report['targets'] as List;
+    final annotations =
+        (targets.first as Map<String, dynamic>)['annotations'] as List;
+    final first = annotations.first as Map<String, dynamic>;
+    expect(first['valuesDecoded'], true);
+    expect(first['elements'], hasLength(2));
   });
 
   test('broken annotation set is partial without pretending to decode', () {
