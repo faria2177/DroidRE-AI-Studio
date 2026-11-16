@@ -1,5 +1,3 @@
-import 'dart:typed_data';
-
 import 'package:flutter/foundation.dart';
 
 /// Read-only qualifiers from ResTable_config inside a ResTable_type.
