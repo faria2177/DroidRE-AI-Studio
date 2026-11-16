@@ -284,7 +284,7 @@ class ArscValueReader {
             // ResTable_map_entry: ResTable_entry(8) + parent(4) + count(4).
             // Each map is name(4) + Res_value(8).
             if (entrySize < 16) {
-              warn('Malformed complex bag entry skipped');
+              warn('Complex bag entry malformed; skipped');
               continue;
             }
             final parentId = r.u32(entry + 8);
