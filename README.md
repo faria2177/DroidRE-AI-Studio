@@ -29,17 +29,25 @@ An **Android-first Flutter project** for offline APK inspection and optional AI 
 
 See [Feature status](docs/FEATURE_STATUS.md) for precise limitations.
 
-## On-device Source Recovery Preview
+## On-device source project folders
 
-Following APK import, the app automatically creates a **real source
-preview folder** under its Android app-specific external-files storage.
-It contains package-organized Java-like pseudocode (\`.java.txt\`),
-Dalvik inspection text, basic resource previews and a coverage report.
-Open **Tools → Browse Generated Code** to inspect individual files, or use
-**Export Source Preview ZIP** to copy the data elsewhere.
-This remains **non-compilable**, non-assemblable and read-only:
-it is not original Java/Kotlin/Flutter source or a buildable Android project.
-See [Source Recovery](docs/SOURCE_RECOVERY.md) for location and limits.
+When an APK is imported, DroidRE detects framework indicators, inspects
+supported DEX and resources offline, and asks the user to choose a public
+folder using Android's **system document-tree picker**. The application then
+creates a new \`DroidRE_<package>_<id>\` directory under the chosen location,
+such as \`Documents/\`, outside \`Android/data\`. The destination is remembered
+for later imports. The app provides **Tools → Choose File Manager Folder**,
+**Generate Code in Selected Folder**, **Browse Generated Code** and
+**Export Source Preview ZIP**.
+
+Output includes package-organized Java-like pseudocode and Dalvik inspection
+text, decoded/raw resource previews, technology-specific analysis for
+Native Android, Flutter, React Native, Unity or NativeScript, and coverage
+warnings in \`REPORT.json\`. It is **not** original source, compilable Java,
+assemblable Smali or a rebuildable Android Studio/Flutter project.
+If the user cancels folder selection, importing the APK still succeeds.
+See [Source Recovery](docs/SOURCE_RECOVERY.md) for limits, permitted folder
+locations, and privacy details.
 
 ## Run locally
 

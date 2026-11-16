@@ -1,74 +1,114 @@
-# On-device source recovery — milestone 1
+# On-device Android source recovery
 
-Source recovery runs **automatically after APK import** and saves a real
-Android application-owned folder. From **Tools** you can browse generated files
-or export a ZIP. Processing runs offline in Dart isolates, without uploading
-an APK or contacting an AI provider.
+DroidRE AI Studio can inspect an imported APK locally, then create a
+**visible project folder in a location the user chooses through Android
+File Manager**, outside the app's private \`Android/data\` directory.
 
-## Automatic Android folder generation
+## First import: choose a public destination
 
-After a successful import, DroidRE automatically runs the bounded offline
-analysis and writes individual files under an app-owned directory similar to:
+1. Tap **Import APK** and choose a local APK.
+2. When the APK has been indexed, Android opens its system **Select folder**
+   picker (unless a previously authorized destination is available).
+3. Choose an existing writable folder, such as \`Documents\` or a custom
+   \`Documents/DroidRE\` folder, and confirm the access request.
+4. The app creates \`DroidRE_<package>_<project-id>/\` inside the selected
+   folder. It never overwrites an existing project folder.
+5. Open **Tools → Browse Generated Code** to inspect files. You can also
+   open the selected location with the phone's usual File Manager, or
+   **Export Source Preview ZIP** to copy the results.
 
-\`/storage/emulated/0/Android/data/com.jahid.droidreai/files/DroidRE_SourceProjects/<package>_<project-id>/\`
+The chosen destination is remembered using a persisted Android Storage
+Access Framework (SAF) folder grant. Use **Tools → Choose File Manager Folder**
+to change it. You can use **Generate Code in Selected Folder** for an
+already-imported APK if the first import was cancelled or its destination
+became unavailable.
 
-The path is obtained from Android's app-specific external files directory at
-runtime, not hardcoded. If external storage is unavailable, app support storage
-is used. No all-files permission is requested. **New Android versions may hide
-Android/data from third-party file managers**, so the app provides **Tools →
-Browse Generated Code** to list and preview files internally. The existing
-**Export Source Preview ZIP** option remains available for sharing or copying
-the files outside the restricted directory. Uninstalling the app can remove
-its app-specific generated files.
+**Android 11+ limitations:** The system folder selector does not allow
+the storage-volume root, Downloads root, or protected \`Android/data\` /
+\`Android/obb\` trees. Not every arbitrary folder or cloud provider is
+writable. Choose a supported subfolder that the system allows. No
+\`MANAGE_EXTERNAL_STORAGE\` or broad device-wide permission is requested.
 
-Folders include:
+If folder selection is cancelled, APK import succeeds but public-folder
+generation is skipped until the user chooses a destination. Failed writes
+are reported and cleanup is attempted. Source files are not automatically
+sent to an AI provider or server.
 
-- \`source/java_like/dex_XX/com/example/Class_XXXX.java.txt\` — package-based
-  Java-like pseudocode (NOT compilable Java).
-- \`source/dalvik/dex_XX/com/example/Class_XXXX.dalvik.txt\` — package-based
-  Dalvik reports (NOT assemblable Smali).
-- \`recovered/dex_XX/classes/XXXX/\` — class/method metadata and original
-  bounded inspection output.
-- \`resources/raw/\`, \`resources/decoded/\`, \`REPORT.json\`, \`README.md\`.
+## Generated structure
 
-Import is considered successful once the APK is indexed, even when source
-recovery fails. In that case the UI reports the recovery error separately.
-Generated folder paths and partial-result flags are persisted with the project.
-The folder is never silently overwritten, preserving any user's later edits.
+\`\`\`text
+Documents/
+  DroidRE_com.example.app_<project-id>/
+    README.md
+    REPORT.json
+    framework/
+      TECHNOLOGY_ANALYSIS.md
+    source/
+      java_like/dex_01/com/example/Main_0001.java.txt
+      dalvik/dex_01/com/example/Main_0001.dalvik.txt
+    recovered/
+      dex_01/
+        INDEX.txt
+        classes/0001/class.txt
+        classes/0001/methods.txt
+        classes/0001/java_like.txt
+        classes/0001/dalvik.txt
+    resources/
+      raw/0001.bin
+      decoded/0001.xml
+\`\`\`
 
-## Contents
+The file names are illustrative. Files vary with APK contents and bounded
+analysis results. \`REPORT.json\` includes source APK SHA-256, detected
+framework, decoded DEX/class/method counts, resource inventory,
+partial-results flag and warnings.
 
-- \`README.md\`: non-compilable/non-assemblable status and limitations.
-- \`REPORT.json\`: input package/SHA-256, counts, exact per-class coverage,
-  local source file mappings, skipped files, and partial-result warnings.
-- \`recovered/dex_XX/INDEX.txt\`: per-DEX summary.
-- \`recovered/dex_XX/classes/XXXX/class.txt\`: class name/flags/count.
-- \`methods.txt\`: declared method names, signatures and code offsets.
-- \`java_like.txt\`: **approximate Java-like pseudocode only**.
-- \`dalvik.txt\`: **decoded Dalvik inspection text only**, not assemblable Smali.
-- \`resources/raw/XXXX.bin\`: bounded raw XML/assets/resource bytes.
-- \`resources/decoded/XXXX.xml\` or \`.txt\`: decoded preview where possible.
+## Technology-aware code analysis
 
-## Limits and security
+- **Native Android / unknown framework:** DEX method inventory, Dalvik
+  instruction inspection and Java-like pseudocode. This is *not* verified
+  Smali and *not* original Java or Kotlin source.
+- **Flutter:** Android host DEX code, available resource previews and
+  native library inventory. Flutter Dart AOT code in \`.so\` files is
+  *not* reconstructed into original Dart source.
+- **React Native:** Android bridge DEX inspection and bounded assets;
+  original TypeScript/JavaScript source maps are not recovered.
+- **Unity:** Android wrapper and native libraries are inventoried.
+  Original Unity C# and IL2CPP source are not recovered.
+- **NativeScript:** Android-side DEX plus bounded assets; original
+  TypeScript/JavaScript project source is not guaranteed.
 
-- First 3 supported DEX files, first 80 classes, first 400 methods.
-- 32 small resources (up to 256 KiB each, 4 MiB aggregate).
-- DEX files above 32 MiB and output ZIP above 24 MiB are refused.
-- A large/unreadable method or resource may be omitted with a warning;
-  \`REPORT.json\` distinguishes partial output.
-- ZIP entry names are normalized and validated to prevent traversal or
-  duplicate source names. Export paths are generated locally by DroidRE.
-- The original APK is not modified, run, rebuilt, signed, or transmitted.
-- Export is opt-in using the operating system save dialog. The output
-  contains code/strings and might be sensitive. Review before sharing.
+Technology detection is heuristic. \`framework/TECHNOLOGY_ANALYSIS.md\`
+contains the detection result and the specific limitations for each app.
+Split APK containers (APKS/APKM/XAPK) and AAB packages are not fully
+reconstructed by this milestone; their nested DEX and resource content
+may not be decoded.
 
-## What is not implemented
+## Scope, safety and limits
 
-This is **not** JADX/Apktool-equivalent source recovery. Original Java/Kotlin,
-compiled Flutter Dart, original comments, exact method bodies in Smali syntax,
-full resource names, Gradle project files and buildable Android Studio source
-cannot be reconstructed in this milestone.
+- First 3 supported DEX files, 80 classes and 400 methods.
+- At most 32 small resources (256 KiB each, 4 MiB combined).
+- Source ZIP at most 24 MiB; SAF writer enforces a 48 MiB expanded
+  data cap and 600-file cap.
+- Large or unsupported methods/resources are skipped with diagnostics;
+  incomplete analysis is not silently called complete.
+- All generated Java-like and Dalvik files use a final \`.txt\` extension,
+  because the output **cannot be compiled or reassembled**.
+- Original APK remains unchanged. ZIP path traversal, duplicates and
+  output overwrites are rejected.
+- SAF authorization is limited to the user-selected tree. Existing
+  generated folders are retained when the destination changes.
+- Generated source can contain private strings, code or keys. Review it
+  before sharing. Inspect apps you own or are authorized to analyze.
 
-Next milestones: more complete DEX code and annotations, class/field metadata,
-Smali fidelity/round-trip validation, deeper resource decoding, and a project
-scaffold with explicit buildability tests. Those are planned, not complete.
+## Validation status
+
+The source code and regression tests are committed, but **no new APK
+build or CI run was requested**. Android 11–16 device validation is still
+required, especially for folder picker grants, document-provider
+performance, cancellation, storage quotas and File Manager access.
+
+See \`test/source_recovery_framework_test.dart\` and
+\`test/saf_source_recovery_service_test.dart\` for new tests.
+Future work includes more faithful Smali, deeper DEX/ELF decompilation,
+full resource recovery and a verified buildable project scaffold.

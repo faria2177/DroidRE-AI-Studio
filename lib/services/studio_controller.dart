@@ -9,6 +9,8 @@ import 'package:path_provider/path_provider.dart';
 import '../models/apk_report.dart';
 import 'apk_analyzer.dart';
 import 'source_recovery_folder_service.dart';
+import 'saf_source_recovery_service.dart';
+import 'source_recovery_bundle.dart';
 
 class StudioController extends ChangeNotifier {
   final List<ApkReport> _projects = [];
@@ -16,6 +18,7 @@ class StudioController extends ChangeNotifier {
   bool _busy = false;
   String? _error;
   String? _recoveryMessage;
+  SafRecoveryDestination? _sourceDestination;
 
   List<ApkReport> get projects => List.unmodifiable(_projects);
   ApkReport? get active {
@@ -28,6 +31,7 @@ class StudioController extends ChangeNotifier {
   bool get busy => _busy;
   String? get error => _error;
   String? get recoveryMessage => _recoveryMessage;
+  SafRecoveryDestination? get sourceDestination => _sourceDestination;
 
   Future<Directory> _projectFolder() async {
     final support = await getApplicationSupportDirectory();
@@ -43,6 +47,14 @@ class StudioController extends ChangeNotifier {
 
   Future<void> load() async {
     try {
+      if (SafSourceRecoveryService.supported) {
+        try {
+          _sourceDestination =
+              await SafSourceRecoveryService.selectedFolder();
+        } catch (_) {
+          // An expired SAF grant must not prevent opening local projects.
+        }
+      }
       final index = await _indexFile();
       if (!await index.exists()) return;
       final parsed = jsonDecode(await index.readAsString());
@@ -88,6 +100,100 @@ class StudioController extends ChangeNotifier {
   void clearRecoveryMessage() {
     _recoveryMessage = null;
     notifyListeners();
+  }
+
+
+  /// Requests a public, writable folder through the Android system picker.
+  Future<bool> chooseRecoveryDestination() async {
+    if (!SafSourceRecoveryService.supported || _busy) {
+      return false;
+    }
+    try {
+      final selected = await SafSourceRecoveryService.chooseFolder();
+      if (selected == null) {
+        _recoveryMessage = 'Folder selection cancelled. Existing APK '
+            'projects are unchanged.';
+        notifyListeners();
+        return false;
+      }
+      _sourceDestination = selected;
+      _recoveryMessage = 'Recovery destination: ${selected.label}';
+      notifyListeners();
+      return true;
+    } catch (error) {
+      _recoveryMessage = 'Cannot select recovery folder: $error';
+      notifyListeners();
+      return false;
+    }
+  }
+
+  Future<bool> _generateFor(ApkReport report) async {
+    if (SafSourceRecoveryService.supported) {
+      var destination = _sourceDestination;
+      destination ??= await SafSourceRecoveryService.selectedFolder();
+      destination ??= await SafSourceRecoveryService.chooseFolder();
+      if (destination == null) {
+        _recoveryMessage = 'APK imported. Select a writable folder in Tools '
+            'to generate project files outside Android/data.';
+        return false;
+      }
+      _sourceDestination = destination;
+      final bundle = await SourceRecoveryBundle.fromProject(report);
+      final generated = await SafSourceRecoveryService.writeBundle(
+        report: report,
+        bundle: bundle,
+      );
+      final index = _projects.indexWhere((item) => item.id == report.id);
+      if (index >= 0) {
+        _projects[index] = report.withSafRecovery(
+          folderUri: generated.folderUri,
+          folderLabel: generated.folderLabel,
+          partial: generated.partial,
+          fileCount: generated.filesWritten,
+        );
+        await _save();
+      }
+      _recoveryMessage = 'Created ${generated.filesWritten} files in '
+          '${generated.folderLabel}'
+          '${generated.partial ? ' (partial recovery)' : ''}';
+    } else {
+      // Desktop uses the existing app-owned storage implementation.
+      final generated = await SourceRecoveryFolderService.generate(report);
+      final index = _projects.indexWhere((item) => item.id == report.id);
+      if (index >= 0) {
+        _projects[index] = report.withRecovery(
+          folderPath: generated.folderPath,
+          partial: generated.partial,
+          fileCount: generated.filesWritten,
+        );
+        await _save();
+      }
+      _recoveryMessage = 'Generated ${generated.filesWritten} local files'
+          '${generated.partial ? ' (partial recovery)' : ''}';
+    }
+    return true;
+  }
+
+  /// Generate for an existing APK after choosing a new destination.
+  /// Existing project folders are never overwritten.
+  Future<bool> generateInSelectedFolder() async {
+    final report = active;
+    if (report == null || _busy) {
+      return false;
+    }
+    _busy = true;
+    _error = null;
+    _recoveryMessage = 'Generating source files for ${report.fileName}...';
+    notifyListeners();
+    try {
+      return await _generateFor(report);
+    } catch (error) {
+      _recoveryMessage = 'Source folder generation failed: $error';
+      return false;
+    } finally {
+      _busy = false;
+      notifyListeners();
+    }
   }
 
   Future<bool> importApk() async {
@@ -137,25 +243,13 @@ class StudioController extends ChangeNotifier {
         _recoveryMessage = 'Analyzing APK and generating source folder...';
         notifyListeners();
 
-        // Import succeeds even if the optional, bounded recovery cannot
-        // decode a method or Android external storage is unavailable.
+        // The system SAF picker is shown after indexing, only when needed.
+        // Cancelling folder access never invalidates the imported APK.
         try {
-          final generated = await SourceRecoveryFolderService.generate(report);
-          final index = _projects.indexWhere((item) => item.id == id);
-          if (index >= 0) {
-            _projects[index] = report.withRecovery(
-              folderPath: generated.folderPath,
-              partial: generated.partial,
-              fileCount: generated.filesWritten,
-            );
-            await _save();
-          }
-          _recoveryMessage = 'Source folder created: '
-              '${generated.filesWritten} files'
-              '${generated.partial ? ' (partial analysis)' : ''}';
+          await _generateFor(report);
         } catch (error) {
-          _recoveryMessage =
-              'APK imported, but source folder generation failed: $error';
+          _recoveryMessage = 'APK imported, but code generation failed: '
+              '$error. Choose a writable folder in Tools and retry.';
         }
         notifyListeners();
         return true;

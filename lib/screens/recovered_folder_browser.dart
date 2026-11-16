@@ -2,15 +2,20 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../services/source_recovery_folder_service.dart';
+import '../services/saf_source_recovery_service.dart';
 
 /// Browse code generated into Android app-specific external storage.
 class RecoveredFolderBrowserScreen extends StatefulWidget {
   const RecoveredFolderBrowserScreen({
     super.key,
-    required this.folderPath,
-  });
+    this.folderPath,
+    this.folderUri,
+    this.folderLabel,
+  }) : assert(folderPath != null || folderUri != null);
 
-  final String folderPath;
+  final String? folderPath;
+  final String? folderUri;
+  final String? folderLabel;
 
   @override
   State<RecoveredFolderBrowserScreen> createState() =>
@@ -24,12 +29,17 @@ class _RecoveredFolderBrowserScreenState
   @override
   void initState() {
     super.initState();
-    files = SourceRecoveryFolderService.listRelativeFiles(widget.folderPath);
+    files = widget.folderUri == null
+        ? SourceRecoveryFolderService.listRelativeFiles(widget.folderPath!)
+        : SafSourceRecoveryService.listFiles(widget.folderUri!);
   }
 
   void _openFile(String relativePath) {
-    final preview = SourceRecoveryFolderService.previewFile(
-        widget.folderPath, relativePath);
+    final preview = widget.folderUri == null
+        ? SourceRecoveryFolderService.previewFile(
+            widget.folderPath!, relativePath)
+        : SafSourceRecoveryService.readFile(
+            widget.folderUri!, relativePath);
     showDialog<void>(
       context: context,
       builder: (dialogContext) => AlertDialog(
@@ -75,7 +85,8 @@ class _RecoveredFolderBrowserScreenState
           icon: const Icon(Icons.copy_all_outlined),
           onPressed: () async {
             await Clipboard.setData(
-              ClipboardData(text: widget.folderPath),
+              ClipboardData(text: widget.folderLabel ??
+                  widget.folderPath ?? widget.folderUri ?? ''),
             );
             if (context.mounted) {
               ScaffoldMessenger.of(context).showSnackBar(
@@ -94,11 +105,15 @@ class _RecoveredFolderBrowserScreenState
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text('Generated locally in the Android app-specific '
-                  'storage folder. No APK upload or device-wide storage '
-                  'permission is required.'),
+              Text(widget.folderUri != null
+                  ? 'Generated in a user-selected File Manager folder '
+                      'outside Android/data using Android document access. '
+                      'The project remains offline and read-only.'
+                  : 'Generated in app-specific storage. '
+                      'No device-wide storage permission is required.'),
               const SizedBox(height: 6),
-              SelectableText(widget.folderPath,
+              SelectableText(widget.folderLabel ??
+                  widget.folderPath ?? 'Recovered folder',
                   style: const TextStyle(
                       fontFamily: 'monospace', fontSize: 12)),
               const SizedBox(height: 6),

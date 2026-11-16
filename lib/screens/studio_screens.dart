@@ -84,6 +84,7 @@ class _StudioShellState extends State<StudioShell> {
             initialPrompt: _aiDraft,
           ),
           ToolsScreen(
+            controller: widget.controller,
             report: widget.controller.active,
             onImport: _import,
             onAnalyze: () => setState(() => _tab = 2),
@@ -872,9 +873,11 @@ class ToolsScreen extends StatefulWidget {
     super.key,
     required this.onImport,
     required this.onAnalyze,
+    required this.controller,
     this.report,
   });
 
+  final StudioController controller;
   final VoidCallback onImport;
   final VoidCallback onAnalyze;
   final ApkReport? report;
@@ -987,14 +990,41 @@ class _ToolsScreenState extends State<ToolsScreen> {
                     ? 'Import an APK first to enable this feature.'
                     : 'Selected APK: ${widget.report!.fileName}'),
                 const SizedBox(height: 6),
-                const Text('On import, the app now creates a real source '
-                    'folder in Android app-specific storage with package-'
-                    'organized Java-like text, Dalvik inspection, and '
-                    'small resource previews. You can also export a ZIP. '
-                    'This is NOT original Java/Kotlin source, rebuildable '
-                    'Smali, or a compilable Android Studio project.'),
-                const SizedBox(height: 12),
+                const Text('After APK import, choose a writable folder in '
+                    'the Android system file picker. DroidRE creates the '
+                    'reconstructed project there, outside Android/data, '
+                    'with technology-aware notes, Java-like text, Dalvik '
+                    'reports and resource previews. Output is not original '
+                    'or compilable source.'),
+                const SizedBox(height: 10),
+                Text(widget.controller.sourceDestination == null
+                    ? 'No public recovery folder selected.'
+                    : 'Destination: ${widget.controller.sourceDestination!.label}'),
+                const SizedBox(height: 8),
+                OutlinedButton.icon(
+                  onPressed: widget.controller.busy
+                      ? null : () async {
+                          await widget.controller.chooseRecoveryDestination();
+                        },
+                  icon: const Icon(Icons.create_new_folder_outlined),
+                  label: const Text('Choose File Manager Folder'),
+                ),
+                const SizedBox(height: 8),
                 FilledButton.icon(
+                  onPressed: widget.report == null || widget.controller.busy
+                      ? null : () async {
+                          await widget.controller.generateInSelectedFolder();
+                        },
+                  icon: const Icon(Icons.auto_fix_high_outlined),
+                  label: const Text('Generate Code in Selected Folder'),
+                ),
+                const SizedBox(height: 8),
+                const Text('Android 11+ restricts selecting storage roots '
+                    'and the Downloads root. Choose Documents or another '
+                    'writable subfolder. Existing generated project folders '
+                    'will never be overwritten.'),
+                const SizedBox(height: 12),
+                OutlinedButton.icon(
                   onPressed: widget.report == null || exporting
                       ? null : _exportSourcePreview,
                   icon: exporting
@@ -1006,23 +1036,29 @@ class _ToolsScreenState extends State<ToolsScreen> {
                   label: Text(exporting
                       ? 'Recovering locally...' : 'Export Source Preview ZIP'),
                 ),
-                if (widget.report?.recoveredFolderPath != null) ...[
+                if (widget.report?.recoveredFolderUri != null ||
+                    widget.report?.recoveredFolderPath != null) ...[
                   const SizedBox(height: 12),
                   const Divider(),
-                  const Text('Automatically generated Android folder:'),
+                  const Text('Generated project location:'),
                   const SizedBox(height: 4),
-                  SelectableText(widget.report!.recoveredFolderPath!,
+                  SelectableText(widget.report!.recoveredFolderLabel ??
+                      widget.report!.recoveredFolderPath ??
+                      'User-selected document folder',
                       style: const TextStyle(
                           fontFamily: 'monospace', fontSize: 12)),
                   const SizedBox(height: 8),
-                  Text('${widget.report!.recoveredFileCount} recovered files'
+                  Text('${widget.report!.recoveredFileCount} generated files'
                       '${widget.report!.recoveryPartial ? ' · partial' : ''}'),
                   const SizedBox(height: 8),
                   OutlinedButton.icon(
                     onPressed: () => Navigator.of(context).push(
                       MaterialPageRoute<void>(
                         builder: (_) => RecoveredFolderBrowserScreen(
-                          folderPath: widget.report!.recoveredFolderPath!,
+                          folderPath: widget.report!.recoveredFolderUri != null
+                              ? null : widget.report!.recoveredFolderPath,
+                          folderUri: widget.report!.recoveredFolderUri,
+                          folderLabel: widget.report!.recoveredFolderLabel,
                         ),
                       ),
                     ),

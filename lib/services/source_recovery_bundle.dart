@@ -63,7 +63,8 @@ class SourceRecoveryBundle {
           final archive = ZipDecoder().decodeStream(input, throwOnError: true);
           return fromArchive(archive,
               packageName: report.manifest.packageName,
-              sourceSha256: report.sha256);
+              sourceSha256: report.sha256,
+              frameworkHint: report.framework);
         } finally {
           input.close();
         }
@@ -75,6 +76,7 @@ class SourceRecoveryBundle {
     Archive source, {
     String packageName = '',
     String sourceSha256 = '',
+    String frameworkHint = '',
   }) {
     if (source.files.length > 10000) {
       throw const FormatException('Archive has too many entries');
@@ -95,6 +97,28 @@ class SourceRecoveryBundle {
       }
       entries[normalized] = file;
     }
+
+    final fileNames = entries.keys.toList();
+    String detectedFramework;
+    if (fileNames.any((path) =>
+        path.startsWith('assets/flutter_assets/') ||
+        path.endsWith('/libflutter.so')) ||
+        frameworkHint.startsWith('Flutter')) {
+      detectedFramework = 'Flutter';
+    } else if (fileNames.contains('assets/index.android.bundle') ||
+        frameworkHint.startsWith('React Native')) {
+      detectedFramework = 'React Native';
+    } else if (fileNames.any((path) => path.endsWith('/libunity.so')) ||
+        frameworkHint.startsWith('Unity')) {
+      detectedFramework = 'Unity';
+    } else if (fileNames.any((path) => path.endsWith('/libnativescript.so')) ||
+        frameworkHint.startsWith('NativeScript')) {
+      detectedFramework = 'NativeScript';
+    } else {
+      detectedFramework = 'Android DEX / unknown framework';
+    }
+    final nativeLibraries = fileNames.where((name) =>
+        name.startsWith('lib/') && name.endsWith('.so')).toList()..sort();
 
     final output = Archive();
     final warnings = <String>[];
@@ -329,9 +353,40 @@ class SourceRecoveryBundle {
         'decodedPreview': decodedPreview,
       });
     }
+    final kindNotes = switch (detectedFramework) {
+      'Flutter' =>
+        'Flutter indicators detected. classes.dex often contains only the '
+        'Android host. Original Dart source is not recovered from compiled '
+        'Flutter AOT snapshots. Native libraries are listed, not decompiled.',
+      'React Native' =>
+        'React Native indicators detected. DEX can contain Java/Kotlin '
+        'bridges. Original TypeScript and JavaScript source maps are not '
+        'recovered; small bundled JS assets may appear in resources/raw.',
+      'Unity' =>
+        'Unity indicators detected. DEX contains Android wrapper code. '
+        'Unity C# source and IL2CPP source are not reconstructed.',
+      'NativeScript' =>
+        'NativeScript indicators detected. DEX can contain Android wrappers. '
+        'Original JavaScript or TypeScript source is not guaranteed.',
+      _ =>
+        'DEX methods are displayed as NON-COMPILABLE Java-like pseudocode '
+        'and NON-ASSEMBLABLE Dalvik reports. Original Java/Kotlin source '
+        'and comments cannot be guaranteed.',
+    };
+    textFile('framework/TECHNOLOGY_ANALYSIS.md',
+        '# Detected technology: $detectedFramework\n\n'
+        '$kindNotes\n\n'
+        'Native libraries found: ${nativeLibraries.length}\n'
+        '${nativeLibraries.take(100).join('\n')}\n\n'
+        'Detection is heuristic, not proof of original project framework.\n'
+        'See REPORT.json for decoder coverage and warnings.\n');
+
     final report = <String, Object?>{
-      'schemaVersion': 1,
+      'schemaVersion': 2,
       'packageName': packageName,
+      'detectedFramework': detectedFramework,
+      'technologyNote': kindNotes,
+      'nativeLibrariesFound': nativeLibraries.length,
       'sourceSha256': sourceSha256,
       'dexFilesFound': dexNames.length,
       'dexFilesVisited': dexVisited,

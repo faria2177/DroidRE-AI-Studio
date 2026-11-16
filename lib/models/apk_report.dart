@@ -93,6 +93,8 @@ class ApkReport {
     required this.framework,
     required this.warnings,
     this.recoveredFolderPath,
+    this.recoveredFolderUri,
+    this.recoveredFolderLabel,
     this.recoveryPartial = false,
     this.recoveredFileCount = 0,
   });
@@ -113,6 +115,9 @@ class ApkReport {
 
   /// App-specific Android external-files storage: generated read-only code.
   final String? recoveredFolderPath;
+  /// Content-URI for a project folder outside Android/data, selected via SAF.
+  final String? recoveredFolderUri;
+  final String? recoveredFolderLabel;
   final bool recoveryPartial;
   final int recoveredFileCount;
 
@@ -139,6 +144,32 @@ class ApkReport {
     recoveredFileCount: fileCount,
   );
 
+  ApkReport withSafRecovery({
+    required String folderUri,
+    required String folderLabel,
+    required bool partial,
+    required int fileCount,
+  }) => ApkReport(
+    id: id,
+    fileName: fileName,
+    localPath: localPath,
+    size: size,
+    sha256: sha256,
+    importedAt: importedAt,
+    entries: entries,
+    entryCount: entryCount,
+    dexFiles: dexFiles,
+    nativeLibraries: nativeLibraries,
+    manifest: manifest,
+    framework: framework,
+    warnings: warnings,
+    recoveredFolderPath: recoveredFolderPath,
+    recoveredFolderUri: folderUri,
+    recoveredFolderLabel: folderLabel,
+    recoveryPartial: partial,
+    recoveredFileCount: fileCount,
+  );
+
   int get dexCount => dexFiles.length;
   int get nativeCount => nativeLibraries.length;
   String get packageLabel =>
@@ -159,6 +190,8 @@ class ApkReport {
     'framework': framework,
     'warnings': warnings,
     'recoveredFolderPath': recoveredFolderPath,
+    'recoveredFolderUri': recoveredFolderUri,
+    'recoveredFolderLabel': recoveredFolderLabel,
     'recoveryPartial': recoveryPartial,
     'recoveredFileCount': recoveredFileCount,
   };
@@ -184,6 +217,8 @@ class ApkReport {
     framework: json['framework'] as String? ?? 'Unknown',
     warnings: _strings(json['warnings']),
     recoveredFolderPath: json['recoveredFolderPath'] as String?,
+    recoveredFolderUri: json['recoveredFolderUri'] as String?,
+    recoveredFolderLabel: json['recoveredFolderLabel'] as String?,
     recoveryPartial: json['recoveryPartial'] as bool? ?? false,
     recoveredFileCount: json['recoveredFileCount'] as int? ?? 0,
   );
