@@ -6,6 +6,7 @@ import '../services/arsc_reference_resolver.dart';
 import '../services/arsc_style_resolver.dart';
 import '../services/arsc_inherited_style_inspector.dart';
 import '../services/arsc_variant_inspector.dart';
+import '../services/arsc_variant_diff_inspector.dart';
 
 class ResourceExplorerTab extends StatefulWidget {
   const ResourceExplorerTab({super.key, required this.report,
@@ -272,42 +273,76 @@ class _CompiledTableViewerState extends State<_CompiledTableViewer> {
 
   void _showConfigurations(
       BuildContext context, ArscVariantComparison comparison) {
+    final baseline = ArscVariantDiffInspector.baseline(comparison);
+    final defaultCount = comparison.variants
+        .where((entry) => entry.configuration?.isDefault == true)
+        .length;
     showDialog<void>(
       context: context,
       builder: (dialogContext) => AlertDialog(
         title: Text('Resource configurations · ${comparison.resourceName}'),
         content: SizedBox(
-          width: 620,
-          height: 420,
+          width: 660,
+          height: 460,
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               Text('${comparison.variants.length} decoded configurations · '
                   '${comparison.valuesDiffer ? 'Different raw values' : 'Matching raw values'}'),
+              const SizedBox(height: 4),
+              SelectableText('Comparison baseline: '
+                  '${baseline.configuration?.label ?? 'config chunk ${baseline.config}'}'
+                  '${defaultCount == 1 ? ' (unique default)' : ' (first decoded; not selected by Android)'}'),
               if (comparison.duplicateQualifiers)
                 const Padding(
                   padding: EdgeInsets.only(top: 6),
                   child: Text('Multiple decoded variants have matching '
-                      'qualifiers. No runtime selection was attempted.'),
+                      'qualifier labels; Android selection is not inferred.'),
                 ),
               const Padding(
                 padding: EdgeInsets.symmetric(vertical: 8),
-                child: Text('This compares only decoded ARSC entries. '
-                    'Android runtime matching, locale fallback, overlays '
-                    'and device configuration are not evaluated.'),
+                child: Text('Expanded locale tags and field-level raw '
+                    'differences are compared only within decoded ARSC '
+                    'entries. Runtime resource matching, locale fallback, '
+                    'overlays and configuration priority are not evaluated.'),
               ),
               Expanded(
                 child: ListView.builder(
                   itemCount: comparison.variants.length,
                   itemBuilder: (context, index) {
                     final entry = comparison.variants[index];
-                    return ListTile(
-                      dense: true,
-                      title: SelectableText(
-                        entry.configuration?.label ??
-                            'Unknown config chunk ${entry.config}',
-                      ),
-                      subtitle: SelectableText(entry.value),
+                    final detail = ArscVariantDiffInspector.compare(
+                        baseline, entry);
+                    return ExpansionTile(
+                      key: ValueKey('${comparison.resourceId}:${entry.config}'),
+                      title: Text(entry.configuration?.label ??
+                          'Unknown config chunk ${entry.config}'),
+                      subtitle: Text('${entry.value} · '
+                          '${detail.changedFields} changed fields'
+                          '${detail.partial ? ' · partial' : ''}'),
+                      children: [
+                        for (final warning in detail.warnings)
+                          Padding(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 12, vertical: 4),
+                            child: Text(warning),
+                          ),
+                        for (final field in detail.fields)
+                          Padding(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 12, vertical: 6),
+                            child: Align(
+                              alignment: Alignment.centerLeft,
+                              child: SelectableText(
+                                '${field.change.name}: ${field.field}\n'
+                                'Baseline: ${field.before ?? '(not present)'}\n'
+                                'Variant: ${field.after ?? '(not present)'}',
+                                style: const TextStyle(
+                                    fontFamily: 'monospace', fontSize: 12),
+                              ),
+                            ),
+                          ),
+                      ],
                     );
                   },
                 ),

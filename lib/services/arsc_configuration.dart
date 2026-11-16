@@ -11,6 +11,9 @@ class ArscConfiguration {
     required this.isDefault,
     required this.hasAdditionalQualifiers,
     this.locale,
+    this.bcp47Locale,
+    this.localeScript,
+    this.localeVariant,
     this.nightMode,
     this.density,
     this.sdkVersion,
@@ -22,7 +25,12 @@ class ArscConfiguration {
   final String qualifiers;
   final bool isDefault;
   final bool hasAdditionalQualifiers;
+  /// Resource directory locale qualifier, including b+ notation where needed.
   final String? locale;
+  /// BCP-47 language tag for valid decoded locale components.
+  final String? bcp47Locale;
+  final String? localeScript;
+  final String? localeVariant;
   final bool? nightMode;
   final int? density;
   final int? sdkVersion;
@@ -71,31 +79,115 @@ class ArscConfiguration {
       qualifiers.add('mnc$mnc');
     }
 
-    // AOSP also supports packed 3-letter locale codes. Only plain
-    // two-letter ASCII forms are decoded here. Other forms remain marked
-    // as additional qualifiers rather than being misrepresented.
+    // AOSP stores 2-letter ASCII or packed 3-letter language/region
+    // codes in two bytes. The third packed letter uses the top bit of
+    // the first byte. Unsupported/corrupt characters are never guessed.
+    String? unpackLocalePair(int first, int second, {
+      required int base,
+      required bool Function(int code) isValid,
+    }) {
+      if (first == 0 && second == 0) {
+        return null;
+      }
+      if ((first & 0x80) != 0) {
+        final codes = <int>[
+          (second & 0x1f) + base,
+          (((second & 0xe0) >> 5) | ((first & 0x03) << 3)) + base,
+          ((first & 0x7c) >> 2) + base,
+        ];
+        return codes.every(isValid) ? String.fromCharCodes(codes) : null;
+      }
+      return isValid(first) && isValid(second)
+          ? String.fromCharCodes([first, second])
+          : null;
+    }
+
+    bool lowercase(int code) => code >= 97 && code <= 122;
+    bool uppercase(int code) => code >= 65 && code <= 90;
+    bool numeric(int code) => code >= 48 && code <= 57;
+
+    String? language;
+    String? region;
     String? locale;
+    String? bcp47Locale;
+    String? localeScript;
+    String? localeVariant;
     if (size >= 12) {
       final langA = byte(8);
       final langB = byte(9);
       final regA = byte(10);
       final regB = byte(11);
-      if (langA >= 97 && langA <= 122 &&
-          langB >= 97 && langB <= 122) {
-        locale = String.fromCharCodes([langA, langB]);
+      language = unpackLocalePair(
+          langA, langB, base: 97, isValid: lowercase);
+      region = (regA & 0x80) != 0
+          ? unpackLocalePair(regA, regB, base: 48, isValid: numeric)
+          : unpackLocalePair(regA, regB, base: 65, isValid: uppercase);
+      if (language != null ||
+          (langA == 0 && langB == 0)) {
         recognized(8, 10);
-        if (regA >= 65 && regA <= 90 &&
-            regB >= 65 && regB <= 90) {
-          locale = '$locale-r${String.fromCharCodes([regA, regB])}';
-          recognized(10, 12);
-        } else if (regA == 0 && regB == 0) {
-          recognized(10, 12);
-        }
-        qualifiers.add(locale);
-      } else if (langA == 0 && langB == 0 &&
-          regA == 0 && regB == 0) {
-        recognized(8, 12);
       }
+      if (region != null ||
+          (regA == 0 && regB == 0)) {
+        recognized(10, 12);
+      }
+    }
+
+    // ResTable_config fields introduced after the 36-byte base:
+    // script[4] at +36 and variant[8] at +40.
+    String? asciiSubtag(int start, int length, {
+      required bool Function(int code) valid,
+      required int minLength,
+    }) {
+      if (size < start + length) {
+        return null;
+      }
+      final codes = <int>[
+        for (var i = 0; i < length; i++) byte(start + i),
+      ];
+      if (codes.every((code) => code == 0)) {
+        return null;
+      }
+      final end = codes.indexOf(0);
+      final count = end < 0 ? length : end;
+      if (count < minLength ||
+          !codes.take(count).every(valid) ||
+          codes.skip(count).any((code) => code != 0)) {
+        return null;
+      }
+      return String.fromCharCodes(codes.take(count));
+    }
+
+    if (language != null) {
+      final scriptRaw = asciiSubtag(36, 4,
+          valid: (code) => lowercase(code) || uppercase(code),
+          minLength: 4);
+      if (scriptRaw != null) {
+        localeScript = '${scriptRaw.substring(0, 1).toUpperCase()}'
+            '${scriptRaw.substring(1).toLowerCase()}';
+        recognized(36, 40);
+      }
+      final variantRaw = asciiSubtag(40, 8,
+          valid: (code) => lowercase(code) ||
+              uppercase(code) || numeric(code),
+          minLength: 4);
+      if (variantRaw != null &&
+          (variantRaw.length >= 5 ||
+              numeric(variantRaw.codeUnitAt(0)))) {
+        localeVariant = variantRaw.toLowerCase();
+        recognized(40, 48);
+      }
+
+      final localeParts = <String>[
+        language,
+        ?localeScript,
+        ?region,
+        ?localeVariant,
+      ];
+      bcp47Locale = localeParts.join('-');
+      locale = localeScript != null || localeVariant != null
+          ? 'b+${localeParts.join('+')}'
+          : region == null ? language : '$language-r$region';
+      qualifiers.add(locale);
     }
 
     String? orientation;
@@ -201,6 +293,9 @@ class ArscConfiguration {
       isDefault: isDefault,
       hasAdditionalQualifiers: hasAdditional,
       locale: locale,
+      bcp47Locale: bcp47Locale,
+      localeScript: localeScript,
+      localeVariant: localeVariant,
       nightMode: nightMode,
       density: density,
       sdkVersion: sdkVersion,
