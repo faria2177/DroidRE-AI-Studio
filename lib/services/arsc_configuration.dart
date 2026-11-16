@@ -179,9 +179,9 @@ class ArscConfiguration {
 
       final localeParts = <String>[
         language,
-        if (localeScript != null) localeScript,
-        if (region != null) region,
-        if (localeVariant != null) localeVariant,
+        ?localeScript,
+        ?region,
+        ?localeVariant,
       ];
       bcp47Locale = localeParts.join('-');
       locale = localeScript != null || localeVariant != null
