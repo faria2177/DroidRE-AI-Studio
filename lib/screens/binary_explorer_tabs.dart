@@ -1214,7 +1214,8 @@ class _NativeGraphViewerState extends State<_NativeGraphViewer> {
                               ListTile(
                                 dense: true,
                                 leading: Icon(
-                                  edge.status == NativeDependencyStatus.packaged
+                                  edge.status == NativeDependencyStatus.packaged ||
+                                      edge.status == NativeDependencyStatus.packagedNotScanned
                                       ? Icons.call_made
                                       : edge.status == NativeDependencyStatus.ambiguous
                                           ? Icons.help_outline
@@ -1224,6 +1225,8 @@ class _NativeGraphViewerState extends State<_NativeGraphViewer> {
                                 subtitle: Text(
                                   edge.status == NativeDependencyStatus.packaged
                                     ? 'Packaged: ${edge.toPath}'
+                                    : edge.status == NativeDependencyStatus.packagedNotScanned
+                                      ? 'Packaged but outside graph scan: ${edge.toPath}'
                                     : edge.status == NativeDependencyStatus.ambiguous
                                       ? 'Ambiguous in APK: ${edge.candidates.join(', ')}'
                                       : 'Not packaged in this ABI · runtime unknown',
