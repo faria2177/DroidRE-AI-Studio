@@ -55,7 +55,7 @@ void main() {
     expect(content('recovered/dex_01/classes/0001/methods.txt'),
         contains('method204'));
     expect(content('recovered/dex_01/classes/0001/java_like.txt'),
-        contains('Java-like pseudocode'));
+        contains('Java-like pseudo statements are not compilable Java'));
     final report = jsonDecode(content('REPORT.json')) as Map<String, dynamic>;
     expect(report['methodsExported'], 205);
     expect(report['sourceSha256'], 'abc123');
@@ -82,8 +82,8 @@ void main() {
         throwsFormatException);
 
     final duplicate = Archive()
-      ..addFile(ArchiveFile.string('AndroidManifest.xml', 'a'))
-      ..addFile(ArchiveFile.string('AndroidManifest.xml', 'b'));
+      ..addFile(ArchiveFile.string('res\\layout\\main.xml', 'a'))
+      ..addFile(ArchiveFile.string('res/layout/main.xml', 'b'));
     expect(() => SourceRecoveryBundle.fromArchive(duplicate),
         throwsFormatException);
   });

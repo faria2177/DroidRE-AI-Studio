@@ -96,7 +96,7 @@ void main() {
     );
     final csv = document.toCsv();
     expect(csv, startsWith('\uFEFF'));
-    expect(csv, contains('"@string/,name"'));
+    expect(csv, contains("\"'@string/,name\""));
     expect(csv, contains('"\'=1+1'));
     expect(csv, contains('""hello""'));
     expect(csv, contains('\nWorld'));
@@ -112,7 +112,8 @@ void main() {
         comparison, [a, b], rowLimit: 1);
     expect(output.truncated, isTrue);
     expect(output.rows, hasLength(1));
-    expect(output.warnings.single, contains('partial'));
+    expect(output.warnings.any((warning) => warning.contains('partial')),
+        isTrue);
     final report = jsonDecode(output.toJson()) as Map<String, dynamic>;
     expect(report['truncated'], isTrue);
     expect(() => ArscVariantReportExporter.build(

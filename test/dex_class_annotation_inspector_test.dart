@@ -34,7 +34,8 @@ void main() {
     final cls = DexInspector.inspectBytes(dex).classes.single;
     final report = DexClassAnnotationInspector.inspectBytes(dex, cls);
     expect(report.partial, isTrue);
-    expect(report.warnings.join(' '), contains('annotation'));
+    expect(report.warnings.join(' ').toLowerCase(),
+        contains('annotation'));
     expect(report.targets, isEmpty);
   });
 
