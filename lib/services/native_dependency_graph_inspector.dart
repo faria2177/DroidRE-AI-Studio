@@ -1,5 +1,4 @@
 import 'dart:isolate';
-import 'dart:typed_data';
 
 import 'package:archive/archive_io.dart';
 import 'package:flutter/foundation.dart';
