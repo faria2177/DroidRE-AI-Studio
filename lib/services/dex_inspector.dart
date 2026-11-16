@@ -4,6 +4,7 @@ import 'dart:isolate';
 import 'package:flutter/foundation.dart';
 
 import 'dalvik_disassembler.dart';
+import 'dalvik_flow_inspector.dart';
 import 'dalvik_pseudocode.dart';
 import 'dex_symbol_index.dart';
 import 'package_binary_reader.dart';
@@ -283,13 +284,23 @@ class DexInspector {
         break;
       }
     }
+    final flow = DalvikFlowInspector.inspect(units, decoded);
+    final flowLines = <String>[
+      if (flow.entries.isNotEmpty)
+        '    # Switch and array payload references (best effort):',
+      for (final entry in flow.entries) '    # $entry',
+      if (flow.warnings.isNotEmpty)
+        '    # Control-flow diagnostics (not a full verifier):',
+      for (final warning in flow.warnings) '    # WARNING: $warning',
+    ];
+    final flowAppendix = flowLines.isEmpty ? '' : '\n${flowLines.join('\n')}';
     final heading = method.smaliPreview.split('\n').first;
     final text = '$heading\n'
         '    .registers ${method.registerCount}\n'
         '    # Read-only Dalvik disassembly, not verified/rebuildable Smali\n'
         '${decoded.instructions.map((item) => '    ${item.line}').join('\n')}\n'
         '${decoded.truncated ? '    # Instruction count capped for display\n' : ''}'
-        '.end method';
+        '.end method$flowAppendix';
     return DexMethodAnalysis(text: text, references: refs.values.toList());
   }
 
