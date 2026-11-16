@@ -10,7 +10,7 @@ Do not mistake a visible tool card for a completed reverse-engineering engine.
 | SHA-256 / file inventory | Implemented | Archive entry list is capped at 10,000 for UI |
 | AndroidManifest | Limited | Common binary XML/text attributes, not full resource resolution |
 | DEX files | Basic inspector + on-demand method pages | DEX 035–040 class/method names, prototypes, flags, registers and first 64 raw code units as fallback; load later methods in 100-method pages |
-| Dalvik instructions | Implemented for standard opcodes | On-demand DEX 035–040 opcode, operands, register/branch decoding and switch/array payload boundaries; not verified Smali |
+| Dalvik instructions | Implemented for standard opcodes | On-demand DEX 035–040 opcode/operand decoding, switch/array payload links, source-relative switch-case targets and bounded branch diagnostics; not verified Smali |
 | DEX symbols | Partial resolution | Resolve string/type/prototype/method/field identifiers to descriptors; call-site and method-handle internals remain symbolic |
 | Cross-reference navigation | Bounded method XREFs | Browse outgoing referenced methods and scan indexed method bodies for incoming callers; not a complete whole-APK call graph |
 | Multi-DEX call graph | Static, bounded | Prioritizes the selected DEX and scans up to 24 DEX files, 6,000 method bodies and 1.5 million code units; matches method signatures across DEX files and displays direct and two-hop calls |
