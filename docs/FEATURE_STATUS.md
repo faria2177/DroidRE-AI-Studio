@@ -18,7 +18,7 @@ Do not mistake a visible tool card for a completed reverse-engineering engine.
 | Smali preview | Read-only | Code offset/descriptor and decoded instructions; not Java reconstruction or round-trip Smali assembly |
 | APK Resources | XML, simple values and bounded reference tracing | `res/`, `assets/`, `resources.arsc` package names plus up to 250 simple resource IDs/types/keys/values with search; up to 8 reference hops within decoded entries, cycle/ambiguity detection; no configuration selection, complex bag or overlay resolution |
 | AI code explanations | Opt-in integrated | Method prompts include resolved symbols and instruction-offset evidence requests; review/edit prompt → consent → send to chosen provider; no binary APK upload |
-| Native `.so` | Basic ELF inspector | On-demand ELF32/ELF64 headers, architecture, byte order and counts; no symbols/disassembly |
+| Native `.so` | ELF headers and bounded symbols | On-demand ELF32/ELF64 header and `.dynsym`/`.symtab` inspection: up to 500 names, binding/visibility, dynamic imports and exports; no native disassembly, stripped binaries may lack symbol sections |
 | Framework detection | Heuristic | Shows indicators, not certainty |
 | Project persistence | Implemented | Local copied artifacts and JSON index |
 | Google account button | Requires Google OAuth registration | Configurable Web Client ID in Settings, native account selection/restore; package name + APK signing SHA must be registered, backend auth verification is future work |

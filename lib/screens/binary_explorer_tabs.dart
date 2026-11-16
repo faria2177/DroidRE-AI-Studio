@@ -7,6 +7,7 @@ import '../services/dex_call_graph.dart';
 import '../services/dex_method_pager.dart';
 import '../services/dex_method_search.dart';
 import '../services/elf_inspector.dart';
+import '../services/elf_symbol_inspector.dart';
 
 class DexBrowserTab extends StatefulWidget {
   const DexBrowserTab({super.key, required this.report, this.onExplainCode});
@@ -706,6 +707,9 @@ class ElfBrowserTab extends StatefulWidget {
 class _ElfBrowserTabState extends State<ElfBrowserTab> {
   String? selected;
   Future<ElfSummary>? task;
+  Future<ElfSymbolReport>? symbolsTask;
+  String symbolQuery = '';
+  String symbolFilter = 'All';
 
   @override
   void didUpdateWidget(covariant ElfBrowserTab oldWidget) {
@@ -713,6 +717,9 @@ class _ElfBrowserTabState extends State<ElfBrowserTab> {
     if (oldWidget.report.id != widget.report.id) {
       selected = null;
       task = null;
+      symbolsTask = null;
+      symbolQuery = '';
+      symbolFilter = 'All';
     }
   }
 
@@ -726,7 +733,7 @@ class _ElfBrowserTabState extends State<ElfBrowserTab> {
         ? selected!
         : files.first;
     return ListView(padding: const EdgeInsets.all(14), children: [
-      const Text('Read-only ELF header inspector'),
+      const Text('Read-only ELF header and symbol inspector'),
       const SizedBox(height: 12),
       DropdownButtonFormField<String>(
         key: ValueKey('${widget.report.id}:$selectedFile'),
@@ -741,6 +748,9 @@ class _ElfBrowserTabState extends State<ElfBrowserTab> {
         onChanged: (value) => setState(() {
           selected = value;
           task = null;
+          symbolsTask = null;
+          symbolQuery = '';
+          symbolFilter = 'All';
         }),
       ),
       const SizedBox(height: 12),
@@ -752,8 +762,19 @@ class _ElfBrowserTabState extends State<ElfBrowserTab> {
         label: Text(task == null ? 'Inspect ELF header' : 'Loaded / loading'),
       ),
       const SizedBox(height: 8),
-      const Text('Header-only: architecture, file type, entry point and table counts. '
-        'No symbols, disassembly or code execution. Limit: 80 MiB per library.'),
+      OutlinedButton.icon(
+        onPressed: symbolsTask == null ? () => setState(() {
+          symbolsTask = ElfSymbolInspector.inspectEntry(
+              widget.report.localPath, selectedFile);
+        }) : null,
+        icon: const Icon(Icons.account_tree_outlined),
+        label: Text(symbolsTask == null
+            ? 'Inspect native symbols' : 'Symbols loaded / loading'),
+      ),
+      const SizedBox(height: 8),
+      const Text('ELF32/ELF64 headers and bounded .dynsym/.symtab names, '
+          'bindings, visibility, imports and exports. No native '
+          'disassembly or code execution. Limit: 80 MiB per library.'),
       if (task != null)
         FutureBuilder<ElfSummary>(future: task, builder: (context, snapshot) {
           if (snapshot.hasError) {
@@ -781,6 +802,93 @@ class _ElfBrowserTabState extends State<ElfBrowserTab> {
               )),
           ]);
         }),
+      if (symbolsTask != null)
+        FutureBuilder<ElfSymbolReport>(
+          future: symbolsTask,
+          builder: (context, snapshot) {
+            if (snapshot.hasError) {
+              return _ErrorPanel(
+                error: 'ELF symbol inspection failed: ${snapshot.error}',
+                onRetry: () => setState(() => symbolsTask = null),
+              );
+            }
+            if (!snapshot.hasData) {
+              return const Padding(
+                padding: EdgeInsets.all(24),
+                child: Center(child: CircularProgressIndicator()),
+              );
+            }
+            final data = snapshot.data!;
+            final matches = data.symbols.where((item) {
+              final matchesFilter = switch (symbolFilter) {
+                'Imports' => item.imported,
+                'Exports' => item.exported,
+                'Other' => !item.imported && !item.exported,
+                _ => true,
+              };
+              return matchesFilter &&
+                  item.name.toLowerCase().contains(symbolQuery.toLowerCase());
+            }).toList();
+
+            return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+              Text('${data.symbols.length} named symbols shown · '
+                  '${data.scanned} records inspected · '
+                  '${data.imports} imports · ${data.exports} exports'
+                  '${data.truncated ? ' · Partial results' : ''}'),
+              if (data.warnings.isNotEmpty)
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 8),
+                  child: Text(data.warnings.join(' · ')),
+                ),
+              const SizedBox(height: 8),
+              TextField(
+                decoration: const InputDecoration(
+                  labelText: 'Filter symbol names',
+                  border: OutlineInputBorder(),
+                  prefixIcon: Icon(Icons.search),
+                ),
+                onChanged: (value) => setState(() => symbolQuery = value),
+              ),
+              const SizedBox(height: 8),
+              DropdownButtonFormField<String>(
+                key: ValueKey('${widget.report.id}:$selectedFile:$symbolFilter'),
+                initialValue: symbolFilter,
+                decoration: const InputDecoration(
+                  labelText: 'Symbol category',
+                  border: OutlineInputBorder(),
+                ),
+                items: ['All', 'Imports', 'Exports', 'Other'].map((value) =>
+                  DropdownMenuItem(value: value, child: Text(value))).toList(),
+                onChanged: (value) => setState(() =>
+                    symbolFilter = value ?? 'All'),
+              ),
+              const SizedBox(height: 8),
+              SizedBox(
+                height: 390,
+                child: matches.isEmpty
+                  ? const Center(child: Text('No matching symbols'))
+                  : ListView.builder(
+                      itemCount: matches.length,
+                      itemBuilder: (context, index) {
+                        final sym = matches[index];
+                        final label = sym.imported
+                            ? 'Import' : sym.exported
+                                ? 'Export' : 'Other';
+                        return ListTile(
+                          dense: true,
+                          title: SelectableText(sym.name),
+                          subtitle: Text(
+                            '${sym.type} · ${sym.binding} · ${sym.visibility} · '
+                            '${sym.dynamic ? '.dynsym' : '.symtab'}',
+                          ),
+                          trailing: Text(label),
+                        );
+                      },
+                    ),
+              ),
+            ]);
+          },
+        ),
     ]);
   }
 }
