@@ -5,6 +5,7 @@ import '../models/apk_report.dart';
 import '../services/dex_inspector.dart';
 import '../services/dex_call_graph.dart';
 import '../services/dex_method_pager.dart';
+import '../services/dex_method_search.dart';
 import '../services/elf_inspector.dart';
 
 class DexBrowserTab extends StatefulWidget {
@@ -21,6 +22,38 @@ class _DexBrowserTabState extends State<DexBrowserTab> {
   String? selected;
   String query = '';
   Future<DexFileSummary>? task;
+  Future<DexMethodSearchResult>? methodSearchTask;
+  final methodSearchController = TextEditingController();
+  String? methodSearchError;
+
+  void _searchMethods(String dexFile) {
+    final term = methodSearchController.text.trim();
+    if (term.isEmpty) {
+      setState(() {
+        methodSearchTask = null;
+        methodSearchError = null;
+      });
+      return;
+    }
+    if (term.length < 2) {
+      setState(() {
+        methodSearchTask = null;
+        methodSearchError = 'Enter at least two characters.';
+      });
+      return;
+    }
+    setState(() {
+      methodSearchError = null;
+      methodSearchTask = DexMethodSearch.searchEntry(
+          widget.report.localPath, dexFile, term);
+    });
+  }
+
+  @override
+  void dispose() {
+    methodSearchController.dispose();
+    super.dispose();
+  }
 
   void _showPseudocode(DexMethodSummary method, String dexFile) {
     final future = DexInspector.pseudocodeEntryMethod(
@@ -342,6 +375,9 @@ class _DexBrowserTabState extends State<DexBrowserTab> {
       selected = null;
       query = '';
       task = null;
+      methodSearchTask = null;
+      methodSearchError = null;
+      methodSearchController.clear();
     }
   }
 
@@ -376,6 +412,9 @@ class _DexBrowserTabState extends State<DexBrowserTab> {
                   selected = value;
                   task = null;
                   query = '';
+                  methodSearchTask = null;
+                  methodSearchError = null;
+                  methodSearchController.clear();
                 }),
               ),
               const SizedBox(height: 8),
