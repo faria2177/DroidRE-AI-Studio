@@ -4,6 +4,7 @@ import 'dart:isolate';
 import 'package:flutter/foundation.dart';
 
 import 'android_binary_xml_decoder.dart';
+import 'arsc_value_reader.dart';
 import 'package_binary_reader.dart';
 
 @immutable
@@ -12,11 +13,19 @@ class ResourceTableSummary {
     required this.packageCount,
     required this.packages,
     required this.stringPoolChunks,
+    this.values = const [],
+    this.scannedSlots = 0,
+    this.valuesTruncated = false,
+    this.valueWarnings = const [],
   });
 
   final int packageCount;
   final List<String> packages;
   final int stringPoolChunks;
+  final List<ArscValue> values;
+  final int scannedSlots;
+  final bool valuesTruncated;
+  final List<String> valueWarnings;
 }
 
 @immutable
@@ -159,10 +168,15 @@ class ResourceInspector {
     if (cursor != bytes.length || packages.length != packageCount) {
       throw const FormatException('Resource table package list is inconsistent');
     }
+    final resolved = ArscValueReader.parse(bytes);
     return ResourceTableSummary(
       packageCount: packageCount,
       packages: packages,
       stringPoolChunks: stringPools,
+      values: resolved.values,
+      scannedSlots: resolved.scannedSlots,
+      valuesTruncated: resolved.truncated,
+      valueWarnings: resolved.warnings,
     );
   }
 }

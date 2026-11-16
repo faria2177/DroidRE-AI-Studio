@@ -56,19 +56,10 @@ class _ResourceExplorerTabState extends State<ResourceExplorerTab> {
               }
               final data = snapshot.data!;
               if (data is ResourceTableSummary) {
-                return SingleChildScrollView(child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text('Packages: ${data.packageCount}'),
-                    Text('Top-level string pools: ${data.stringPoolChunks}'),
-                    const SizedBox(height: 10),
-                    for (final name in data.packages) SelectableText(name),
-                    const SizedBox(height: 10),
-                    const Text('Only table headers and package names are decoded. '
-                      'Resource IDs, values and binary XML references require deeper parsing.'),
-                  ],
-                ));
+                return SizedBox(
+                  height: 440,
+                  child: _CompiledTableViewer(summary: data),
+                );
               }
               final preview = data as ResourcePreview;
               return SingleChildScrollView(child: Column(
@@ -174,8 +165,8 @@ class _ResourceExplorerTabState extends State<ResourceExplorerTab> {
             onChanged: (value) => setState(() => category = value ?? 'All'),
           ),
           const SizedBox(height: 6),
-          const Text('Tap a file to inspect text, images or the decoded '
-              'Android Binary XML tree. Resource ID values are not yet resolved.'),
+          const Text('Tap a file to inspect text, images, Android XML or '
+              'simple compiled resource IDs and values.'),
         ]),
       ),
       Expanded(child: ListView.builder(
@@ -194,6 +185,76 @@ class _ResourceExplorerTabState extends State<ResourceExplorerTab> {
           );
         },
       )),
+    ]);
+  }
+}
+
+class _CompiledTableViewer extends StatefulWidget {
+  const _CompiledTableViewer({required this.summary});
+  final ResourceTableSummary summary;
+
+  @override
+  State<_CompiledTableViewer> createState() => _CompiledTableViewerState();
+}
+
+class _CompiledTableViewerState extends State<_CompiledTableViewer> {
+  String query = '';
+
+  @override
+  Widget build(BuildContext context) {
+    final summary = widget.summary;
+    final lowerQuery = query.toLowerCase();
+    final matches = summary.values.where((entry) =>
+      entry.idHex.toLowerCase().contains(lowerQuery) ||
+      entry.name.toLowerCase().contains(lowerQuery) ||
+      entry.value.toLowerCase().contains(lowerQuery)).toList();
+
+    return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+      Text('Packages: ${summary.packageCount} · '
+           'Top-level pools: ${summary.stringPoolChunks}'),
+      for (final name in summary.packages)
+        Text(name, maxLines: 1, overflow: TextOverflow.ellipsis),
+      const SizedBox(height: 6),
+      Text('${summary.values.length} simple entries decoded · '
+           '${summary.scannedSlots} index slots inspected'
+           '${summary.valuesTruncated ? ' · partial results' : ''}'),
+      const SizedBox(height: 6),
+      TextField(
+        decoration: const InputDecoration(
+          labelText: 'Filter ID, type/name or value',
+          prefixIcon: Icon(Icons.search),
+          isDense: true,
+          border: OutlineInputBorder(),
+        ),
+        onChanged: (value) => setState(() => query = value),
+      ),
+      if (summary.valueWarnings.isNotEmpty)
+        Padding(
+          padding: const EdgeInsets.only(top: 6),
+          child: Text(summary.valueWarnings.join(' · '),
+            maxLines: 3, overflow: TextOverflow.ellipsis),
+        ),
+      const Padding(
+        padding: EdgeInsets.symmetric(vertical: 6),
+        child: Text('Configuration variants are shown separately. '
+          'Complex bags, overlays and resource-reference chains '
+          'are not resolved.'),
+      ),
+      Expanded(child: matches.isEmpty
+        ? const Center(child: Text('No matching decoded values'))
+        : ListView.builder(
+            itemCount: matches.length,
+            itemBuilder: (context, index) {
+              final entry = matches[index];
+              return ListTile(
+                dense: true,
+                title: SelectableText('${entry.idHex}  ${entry.name}',
+                  style: const TextStyle(fontFamily: 'monospace')),
+                subtitle: SelectableText('${entry.value}  '
+                    '(config chunk ${entry.config})'),
+              );
+            },
+          )),
     ]);
   }
 }
