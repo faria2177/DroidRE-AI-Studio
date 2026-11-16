@@ -10,6 +10,7 @@ import '../services/elf_inspector.dart';
 import '../services/elf_symbol_inspector.dart';
 import '../services/elf_dependency_inspector.dart';
 import '../services/elf_section_inspector.dart';
+import '../services/native_dependency_graph_inspector.dart';
 
 class DexBrowserTab extends StatefulWidget {
   const DexBrowserTab({super.key, required this.report, this.onExplainCode});
@@ -712,6 +713,7 @@ class _ElfBrowserTabState extends State<ElfBrowserTab> {
   Future<ElfSymbolReport>? symbolsTask;
   Future<ElfDependencyReport>? dependencyTask;
   Future<ElfSectionReport>? sectionsTask;
+  Future<NativeDependencyGraph>? graphTask;
   String sectionQuery = '';
   String symbolQuery = '';
   String symbolFilter = 'All';
@@ -725,6 +727,7 @@ class _ElfBrowserTabState extends State<ElfBrowserTab> {
       symbolsTask = null;
       dependencyTask = null;
       sectionsTask = null;
+      graphTask = null;
       sectionQuery = '';
       symbolQuery = '';
       symbolFilter = 'All';
@@ -759,6 +762,7 @@ class _ElfBrowserTabState extends State<ElfBrowserTab> {
           symbolsTask = null;
           dependencyTask = null;
           sectionsTask = null;
+          graphTask = null;
           sectionQuery = '';
           symbolQuery = '';
           symbolFilter = 'All';
@@ -803,10 +807,44 @@ class _ElfBrowserTabState extends State<ElfBrowserTab> {
             ? 'Inspect ELF sections' : 'Sections loaded / loading'),
       ),
       const SizedBox(height: 8),
-      const Text('ELF32/ELF64 headers, sections, symbol names and '
-          'DT_NEEDED, SONAME, RPATH/RUNPATH. Sections are metadata only; '
-          'stripped binaries may omit them. Read-only, no native '
-          'disassembly or code execution. Limit: 80 MiB per library.'),
+      OutlinedButton.icon(
+        onPressed: graphTask == null ? () => setState(() {
+          graphTask = NativeDependencyGraphInspector.inspectEntry(
+            widget.report.localPath, selectedFile,
+            widget.report.nativeLibraries,
+          );
+        }) : null,
+        icon: const Icon(Icons.hub_outlined),
+        label: Text(graphTask == null
+            ? 'Build ABI dependency graph' : 'Graph loaded / loading'),
+      ),
+      const SizedBox(height: 8),
+      const Text('ELF32/ELF64 headers, sections, symbols, dependencies and '
+          'same-ABI dependency graph. A declared DT_NEEDED dependency '
+          'does not guarantee runtime availability. Read-only; no native '
+          'disassembly or execution. Graph scans at most 64 libraries.'),
+      if (graphTask != null)
+        FutureBuilder<NativeDependencyGraph>(
+          future: graphTask,
+          builder: (context, snapshot) {
+            if (snapshot.hasError) {
+              return _ErrorPanel(
+                error: 'Dependency graph inspection failed: ${snapshot.error}',
+                onRetry: () => setState(() => graphTask = null),
+              );
+            }
+            if (!snapshot.hasData) {
+              return const Padding(
+                padding: EdgeInsets.all(24),
+                child: Center(child: CircularProgressIndicator()),
+              );
+            }
+            return _NativeGraphViewer(
+              key: ValueKey('${widget.report.id}:$selectedFile:graph'),
+              graph: snapshot.data!,
+            );
+          },
+        ),
       if (sectionsTask != null)
         FutureBuilder<ElfSectionReport>(
           future: sectionsTask,
@@ -1064,6 +1102,145 @@ class _ElfBrowserTabState extends State<ElfBrowserTab> {
           },
         ),
     ]);
+  }
+}
+
+
+
+class _NativeGraphViewer extends StatefulWidget {
+  const _NativeGraphViewer({super.key, required this.graph});
+  final NativeDependencyGraph graph;
+
+  @override
+  State<_NativeGraphViewer> createState() => _NativeGraphViewerState();
+}
+
+class _NativeGraphViewerState extends State<_NativeGraphViewer> {
+  String query = '';
+  bool onlyLinked = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final graph = widget.graph;
+    final lowercaseQuery = query.toLowerCase();
+    final nodes = graph.nodes.where((node) {
+      final outgoing = graph.edges
+          .where((edge) => edge.fromPath == node.path).toList();
+      final matches = node.path.toLowerCase().contains(lowercaseQuery) ||
+          (node.soname?.toLowerCase().contains(lowercaseQuery) ?? false) ||
+          outgoing.any((edge) =>
+              edge.neededName.toLowerCase().contains(lowercaseQuery));
+      return matches && (!onlyLinked || outgoing.isNotEmpty);
+    }).toList();
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+          Text('Native dependency graph',
+            style: Theme.of(context).textTheme.titleMedium),
+          const SizedBox(height: 6),
+          Text('ABI folder: ${graph.abiDirectory}'),
+          Text('${graph.nodes.length} packaged library nodes · '
+              '${graph.edges.length} DT_NEEDED edges'
+              '${graph.truncated ? ' · incomplete scan' : ''}'),
+          const SizedBox(height: 6),
+          const Text('Edges point from a library to its declared dependency. '
+              'Not packaged means runtime availability is unknown.'),
+          if (graph.cycles.isNotEmpty) ...[
+            const SizedBox(height: 8),
+            Text('Possible dependency cycles: ${graph.cycles.join('; ')}'),
+          ],
+          if (graph.warnings.isNotEmpty) ...[
+            const SizedBox(height: 8),
+            Text(graph.warnings.join(' · '),
+              maxLines: 5, overflow: TextOverflow.ellipsis),
+          ],
+          const SizedBox(height: 10),
+          TextField(
+            decoration: const InputDecoration(
+              labelText: 'Filter libraries or dependency names',
+              prefixIcon: Icon(Icons.search),
+              border: OutlineInputBorder(),
+            ),
+            onChanged: (value) => setState(() => query = value),
+          ),
+          SwitchListTile(
+            dense: true,
+            title: const Text('Only libraries with outgoing dependencies'),
+            value: onlyLinked,
+            onChanged: (value) => setState(() => onlyLinked = value),
+          ),
+          SizedBox(
+            height: 440,
+            child: nodes.isEmpty
+                ? const Center(child: Text('No matching graph nodes'))
+                : ListView.builder(
+                    itemCount: nodes.length,
+                    itemBuilder: (context, index) {
+                      final node = nodes[index];
+                      final outgoing = graph.edges
+                          .where((edge) => edge.fromPath == node.path).toList();
+                      final root = node.path == graph.rootPath;
+                      return Card(
+                        child: ExpansionTile(
+                          key: ValueKey(node.path),
+                          initiallyExpanded: root,
+                          leading: Icon(root
+                              ? Icons.radio_button_checked
+                              : Icons.memory),
+                          title: Text(node.filename,
+                            overflow: TextOverflow.ellipsis),
+                          subtitle: Text(node.inspected
+                              ? '${outgoing.length} declared dependencies'
+                              : 'Packaged but not inspected'),
+                          children: [
+                            if (node.soname != null)
+                              ListTile(
+                                dense: true,
+                                title: SelectableText('SONAME: ${node.soname}'),
+                              ),
+                            if (node.warning != null)
+                              ListTile(
+                                dense: true,
+                                title: Text('Not inspected: ${node.warning}'),
+                              ),
+                            if (node.inspected && outgoing.isEmpty)
+                              const ListTile(
+                                dense: true,
+                                title: Text('No DT_NEEDED entries decoded'),
+                              ),
+                            for (final edge in outgoing)
+                              ListTile(
+                                dense: true,
+                                leading: Icon(
+                                  edge.status == NativeDependencyStatus.packaged ||
+                                      edge.status == NativeDependencyStatus.packagedNotScanned
+                                      ? Icons.call_made
+                                      : edge.status == NativeDependencyStatus.ambiguous
+                                          ? Icons.help_outline
+                                          : Icons.open_in_new,
+                                ),
+                                title: SelectableText(edge.neededName),
+                                subtitle: Text(
+                                  edge.status == NativeDependencyStatus.packaged
+                                    ? 'Packaged: ${edge.toPath}'
+                                    : edge.status == NativeDependencyStatus.packagedNotScanned
+                                      ? 'Packaged but outside graph scan: ${edge.toPath}'
+                                    : edge.status == NativeDependencyStatus.ambiguous
+                                      ? 'Ambiguous in APK: ${edge.candidates.join(', ')}'
+                                      : 'Not packaged in this ABI · runtime unknown',
+                                ),
+                              ),
+                          ],
+                        ),
+                      );
+                    },
+                  ),
+          ),
+        ]),
+      ),
+    );
   }
 }
 
