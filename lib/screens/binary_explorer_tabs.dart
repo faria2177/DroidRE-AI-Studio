@@ -8,6 +8,7 @@ import '../services/dex_method_pager.dart';
 import '../services/dex_method_search.dart';
 import '../services/elf_inspector.dart';
 import '../services/elf_symbol_inspector.dart';
+import '../services/elf_dependency_inspector.dart';
 
 class DexBrowserTab extends StatefulWidget {
   const DexBrowserTab({super.key, required this.report, this.onExplainCode});
@@ -708,6 +709,7 @@ class _ElfBrowserTabState extends State<ElfBrowserTab> {
   String? selected;
   Future<ElfSummary>? task;
   Future<ElfSymbolReport>? symbolsTask;
+  Future<ElfDependencyReport>? dependencyTask;
   String symbolQuery = '';
   String symbolFilter = 'All';
 
@@ -718,6 +720,7 @@ class _ElfBrowserTabState extends State<ElfBrowserTab> {
       selected = null;
       task = null;
       symbolsTask = null;
+      dependencyTask = null;
       symbolQuery = '';
       symbolFilter = 'All';
     }
@@ -749,6 +752,7 @@ class _ElfBrowserTabState extends State<ElfBrowserTab> {
           selected = value;
           task = null;
           symbolsTask = null;
+          dependencyTask = null;
           symbolQuery = '';
           symbolFilter = 'All';
         }),
@@ -772,9 +776,77 @@ class _ElfBrowserTabState extends State<ElfBrowserTab> {
             ? 'Inspect native symbols' : 'Symbols loaded / loading'),
       ),
       const SizedBox(height: 8),
-      const Text('ELF32/ELF64 headers and bounded .dynsym/.symtab names, '
-          'bindings, visibility, imports and exports. No native '
-          'disassembly or code execution. Limit: 80 MiB per library.'),
+      OutlinedButton.icon(
+        onPressed: dependencyTask == null ? () => setState(() {
+          dependencyTask = ElfDependencyInspector.inspectEntry(
+              widget.report.localPath, selectedFile);
+        }) : null,
+        icon: const Icon(Icons.link),
+        label: Text(dependencyTask == null
+            ? 'Inspect library dependencies' : 'Dependencies loaded / loading'),
+      ),
+      const SizedBox(height: 8),
+      const Text('ELF32/ELF64 headers, symbol names, dynamic dependencies '
+          '(DT_NEEDED, SONAME, RPATH and RUNPATH). PT_DYNAMIC supports '
+          'stripped ELF binaries without section headers. Read-only; '
+          'no native disassembly or code execution. Limit: 80 MiB per library.'),
+      if (dependencyTask != null)
+        FutureBuilder<ElfDependencyReport>(
+          future: dependencyTask,
+          builder: (context, snapshot) {
+            if (snapshot.hasError) {
+              return _ErrorPanel(
+                error: 'ELF dependency inspection failed: ${snapshot.error}',
+                onRetry: () => setState(() => dependencyTask = null),
+              );
+            }
+            if (!snapshot.hasData) {
+              return const Padding(
+                padding: EdgeInsets.all(24),
+                child: Center(child: CircularProgressIndicator()),
+              );
+            }
+            final report = snapshot.data!;
+            return Card(
+              child: Padding(
+                padding: const EdgeInsets.all(12),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('Dynamic dependencies',
+                      style: Theme.of(context).textTheme.titleMedium),
+                    const SizedBox(height: 8),
+                    Text('Source: ${report.source} · '
+                         '${report.examinedEntries} entries examined'
+                         '${report.truncated ? ' · partial' : ''}'),
+                    if (report.soname != null)
+                      SelectableText('SONAME: ${report.soname}'),
+                    if (report.rpath != null)
+                      SelectableText('RPATH: ${report.rpath}'),
+                    if (report.runpath != null)
+                      SelectableText('RUNPATH: ${report.runpath}'),
+                    const SizedBox(height: 8),
+                    Text('DT_NEEDED: ${report.needed.length} libraries'),
+                    if (report.needed.isEmpty)
+                      const Text('No dependency names decoded'),
+                    for (final library in report.needed)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 3),
+                        child: SelectableText(library),
+                      ),
+                    if (report.warnings.isNotEmpty) ...[
+                      const SizedBox(height: 8),
+                      Text(report.warnings.join(' · ')),
+                    ],
+                    const SizedBox(height: 8),
+                    const Text('Listed dependencies are declarations, '
+                        'not proof that libraries are present or loadable.'),
+                  ],
+                ),
+              ),
+            );
+          },
+        ),
       if (task != null)
         FutureBuilder<ElfSummary>(future: task, builder: (context, snapshot) {
           if (snapshot.hasError) {
