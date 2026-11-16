@@ -54,6 +54,14 @@ If the user cancels folder selection, importing the APK still succeeds.
 See [Source Recovery](docs/SOURCE_RECOVERY.md) for limits, permitted folder
 locations, and privacy details.
 
+## Android development build
+
+The latest source-recovery changes are packaged as development version **0.7.0+8**.
+GitHub Actions **Flutter CI and Debug APK** runs `flutter analyze`, `flutter test`,
+and then builds an Android debug APK from `main`. The artifact is signed
+with the development debug key; it is for testing, not Play Store release.
+See [workflow](.github/workflows/flutter-ci.yml).
+
 ## Run locally
 
 Flutter SDK **3.47.4** with a compatible Android SDK/JDK is the initial target.
