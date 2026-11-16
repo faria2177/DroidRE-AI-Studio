@@ -75,6 +75,21 @@ void main() {
     expect(graph.edges.single.toPath, isNull);
   });
 
+  test('identifies packaged dependency outside the scan cap', () {
+    final graph = NativeDependencyGraphInspector.buildGraph(
+      rootPath: root,
+      abiDirectory: abi,
+      paths: [root],
+      knownPaths: [root, helper],
+      reports: {root: dependency(['libhelper.so'])},
+      truncated: true,
+    );
+    expect(graph.edges.single.status,
+        NativeDependencyStatus.packagedNotScanned);
+    expect(graph.edges.single.toPath, helper);
+    expect(graph.truncated, isTrue);
+  });
+
   test('does not connect two different ABIs', () {
     expect(() => NativeDependencyGraphInspector.buildGraph(
       rootPath: root,
