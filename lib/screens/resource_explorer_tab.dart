@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../models/apk_report.dart';
 import '../services/resource_inspector.dart';
+import '../services/arsc_reference_resolver.dart';
 
 class ResourceExplorerTab extends StatefulWidget {
   const ResourceExplorerTab({super.key, required this.report,
@@ -204,10 +205,12 @@ class _CompiledTableViewerState extends State<_CompiledTableViewer> {
   Widget build(BuildContext context) {
     final summary = widget.summary;
     final lowerQuery = query.toLowerCase();
+    final resolver = ArscReferenceResolver(summary.values);
     final matches = summary.values.where((entry) =>
       entry.idHex.toLowerCase().contains(lowerQuery) ||
       entry.name.toLowerCase().contains(lowerQuery) ||
-      entry.value.toLowerCase().contains(lowerQuery)).toList();
+      entry.value.toLowerCase().contains(lowerQuery) ||
+      (resolver.trace(entry)?.description.toLowerCase().contains(lowerQuery) ?? false)).toList();
 
     return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
       Text('Packages: ${summary.packageCount} · '
@@ -236,9 +239,9 @@ class _CompiledTableViewerState extends State<_CompiledTableViewer> {
         ),
       const Padding(
         padding: EdgeInsets.symmetric(vertical: 6),
-        child: Text('Configuration variants are shown separately. '
-          'Complex bags, overlays and resource-reference chains '
-          'are not resolved.'),
+        child: Text('Reference chains are traced within the decoded preview '
+          'only. Configuration variants are not automatically selected; '
+          'complex bags and overlays remain unsupported.'),
       ),
       Expanded(child: matches.isEmpty
         ? const Center(child: Text('No matching decoded values'))
@@ -246,12 +249,16 @@ class _CompiledTableViewerState extends State<_CompiledTableViewer> {
             itemCount: matches.length,
             itemBuilder: (context, index) {
               final entry = matches[index];
+              final reference = resolver.trace(entry);
               return ListTile(
                 dense: true,
                 title: SelectableText('${entry.idHex}  ${entry.name}',
                   style: const TextStyle(fontFamily: 'monospace')),
-                subtitle: SelectableText('${entry.value}  '
-                    '(config chunk ${entry.config})'),
+                subtitle: SelectableText([
+                  '${entry.value}  (config chunk ${entry.config})',
+                  if (reference != null)
+                    'Reference: ${reference.description}',
+                ].join('\n')),
               );
             },
           )),
