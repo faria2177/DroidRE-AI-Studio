@@ -40,6 +40,9 @@ void main() {
     expect(names, contains('REPORT.json'));
     expect(names, contains('recovered/dex_01/classes/0001/dalvik.txt'));
     expect(names, contains('recovered/dex_01/classes/0001/java_like.txt'));
+    expect(names, contains('source/java_like/dex_01/com/demo/Many_0001.java.txt'));
+    expect(names, contains('source/dalvik/dex_01/com/demo/Many_0001.dalvik.txt'));
+
     expect(names, contains('recovered/dex_01/classes/0001/methods.txt'));
     expect(names, contains('resources/raw/0001.bin'));
 

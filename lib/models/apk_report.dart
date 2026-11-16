@@ -92,6 +92,9 @@ class ApkReport {
     required this.manifest,
     required this.framework,
     required this.warnings,
+    this.recoveredFolderPath,
+    this.recoveryPartial = false,
+    this.recoveredFileCount = 0,
   });
 
   final String id;
@@ -107,6 +110,34 @@ class ApkReport {
   final ManifestInfo manifest;
   final String framework;
   final List<String> warnings;
+
+  /// App-specific Android external-files storage: generated read-only code.
+  final String? recoveredFolderPath;
+  final bool recoveryPartial;
+  final int recoveredFileCount;
+
+  ApkReport withRecovery({
+    required String folderPath,
+    required bool partial,
+    required int fileCount,
+  }) => ApkReport(
+    id: id,
+    fileName: fileName,
+    localPath: localPath,
+    size: size,
+    sha256: sha256,
+    importedAt: importedAt,
+    entries: entries,
+    entryCount: entryCount,
+    dexFiles: dexFiles,
+    nativeLibraries: nativeLibraries,
+    manifest: manifest,
+    framework: framework,
+    warnings: warnings,
+    recoveredFolderPath: folderPath,
+    recoveryPartial: partial,
+    recoveredFileCount: fileCount,
+  );
 
   int get dexCount => dexFiles.length;
   int get nativeCount => nativeLibraries.length;
@@ -127,6 +158,9 @@ class ApkReport {
     'manifest': manifest.toJson(),
     'framework': framework,
     'warnings': warnings,
+    'recoveredFolderPath': recoveredFolderPath,
+    'recoveryPartial': recoveryPartial,
+    'recoveredFileCount': recoveredFileCount,
   };
 
   factory ApkReport.fromJson(Map<String, dynamic> json) => ApkReport(
@@ -149,5 +183,8 @@ class ApkReport {
     ),
     framework: json['framework'] as String? ?? 'Unknown',
     warnings: _strings(json['warnings']),
+    recoveredFolderPath: json['recoveredFolderPath'] as String?,
+    recoveryPartial: json['recoveryPartial'] as bool? ?? false,
+    recoveredFileCount: json['recoveredFileCount'] as int? ?? 0,
   );
 }

@@ -8,12 +8,14 @@ import 'package:path_provider/path_provider.dart';
 
 import '../models/apk_report.dart';
 import 'apk_analyzer.dart';
+import 'source_recovery_folder_service.dart';
 
 class StudioController extends ChangeNotifier {
   final List<ApkReport> _projects = [];
   String? _activeId;
   bool _busy = false;
   String? _error;
+  String? _recoveryMessage;
 
   List<ApkReport> get projects => List.unmodifiable(_projects);
   ApkReport? get active {
@@ -25,6 +27,7 @@ class StudioController extends ChangeNotifier {
 
   bool get busy => _busy;
   String? get error => _error;
+  String? get recoveryMessage => _recoveryMessage;
 
   Future<Directory> _projectFolder() async {
     final support = await getApplicationSupportDirectory();
@@ -73,11 +76,17 @@ class StudioController extends ChangeNotifier {
   void select(ApkReport report) {
     _activeId = report.id;
     _error = null;
+    _recoveryMessage = null;
     notifyListeners();
   }
 
   void clearError() {
     _error = null;
+    notifyListeners();
+  }
+
+  void clearRecoveryMessage() {
+    _recoveryMessage = null;
     notifyListeners();
   }
 
@@ -125,6 +134,29 @@ class StudioController extends ChangeNotifier {
         _projects.insert(0, report);
         _activeId = id;
         await _save();
+        _recoveryMessage = 'Analyzing APK and generating source folder...';
+        notifyListeners();
+
+        // Import succeeds even if the optional, bounded recovery cannot
+        // decode a method or Android external storage is unavailable.
+        try {
+          final generated = await SourceRecoveryFolderService.generate(report);
+          final index = _projects.indexWhere((item) => item.id == id);
+          if (index >= 0) {
+            _projects[index] = report.withRecovery(
+              folderPath: generated.folderPath,
+              partial: generated.partial,
+              fileCount: generated.filesWritten,
+            );
+            await _save();
+          }
+          _recoveryMessage = 'Source folder created: '
+              '${generated.filesWritten} files'
+              '${generated.partial ? ' (partial analysis)' : ''}';
+        } catch (error) {
+          _recoveryMessage =
+              'APK imported, but source folder generation failed: $error';
+        }
         notifyListeners();
         return true;
       } catch (_) {

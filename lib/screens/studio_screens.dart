@@ -8,6 +8,7 @@ import '../services/studio_controller.dart';
 import '../services/source_recovery_bundle.dart';
 import 'binary_explorer_tabs.dart';
 import 'resource_explorer_tab.dart';
+import 'recovered_folder_browser.dart';
 
 class StudioShell extends StatefulWidget {
   const StudioShell({super.key, required this.controller});
@@ -155,6 +156,20 @@ class _StudioShellState extends State<StudioShell> {
                         actions: [
                           TextButton(
                             onPressed: widget.controller.clearError,
+                            child: const Text('Dismiss'),
+                          ),
+                        ],
+                      ),
+                    if (widget.controller.recoveryMessage != null)
+                      MaterialBanner(
+                        content: Text(widget.controller.recoveryMessage!),
+                        actions: [
+                          TextButton(
+                            onPressed: () => setState(() => _tab = 4),
+                            child: const Text('View generated files'),
+                          ),
+                          TextButton(
+                            onPressed: widget.controller.clearRecoveryMessage,
                             child: const Text('Dismiss'),
                           ),
                         ],
@@ -972,11 +987,12 @@ class _ToolsScreenState extends State<ToolsScreen> {
                     ? 'Import an APK first to enable this feature.'
                     : 'Selected APK: ${widget.report!.fileName}'),
                 const SizedBox(height: 6),
-                const Text('Exports a bounded DEX class/method inventory, '
-                    'Dalvik inspection text, non-compilable Java-like '
-                    'pseudocode, and small raw/decoded resource previews. '
-                    'This is NOT original source, rebuildable Smali, '
-                    'or a compilable Android Studio project.'),
+                const Text('On import, the app now creates a real source '
+                    'folder in Android app-specific storage with package-'
+                    'organized Java-like text, Dalvik inspection, and '
+                    'small resource previews. You can also export a ZIP. '
+                    'This is NOT original Java/Kotlin source, rebuildable '
+                    'Smali, or a compilable Android Studio project.'),
                 const SizedBox(height: 12),
                 FilledButton.icon(
                   onPressed: widget.report == null || exporting
@@ -990,6 +1006,30 @@ class _ToolsScreenState extends State<ToolsScreen> {
                   label: Text(exporting
                       ? 'Recovering locally...' : 'Export Source Preview ZIP'),
                 ),
+                if (widget.report?.recoveredFolderPath != null) ...[
+                  const SizedBox(height: 12),
+                  const Divider(),
+                  const Text('Automatically generated Android folder:'),
+                  const SizedBox(height: 4),
+                  SelectableText(widget.report!.recoveredFolderPath!,
+                      style: const TextStyle(
+                          fontFamily: 'monospace', fontSize: 12)),
+                  const SizedBox(height: 8),
+                  Text('${widget.report!.recoveredFileCount} recovered files'
+                      '${widget.report!.recoveryPartial ? ' · partial' : ''}'),
+                  const SizedBox(height: 8),
+                  OutlinedButton.icon(
+                    onPressed: () => Navigator.of(context).push(
+                      MaterialPageRoute<void>(
+                        builder: (_) => RecoveredFolderBrowserScreen(
+                          folderPath: widget.report!.recoveredFolderPath!,
+                        ),
+                      ),
+                    ),
+                    icon: const Icon(Icons.folder_open_outlined),
+                    label: const Text('Browse Generated Code'),
+                  ),
+                ],
                 if (exportStatus.isNotEmpty)
                   Padding(
                     padding: const EdgeInsets.only(top: 10),

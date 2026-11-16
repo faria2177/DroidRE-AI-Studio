@@ -31,12 +31,15 @@ See [Feature status](docs/FEATURE_STATUS.md) for precise limitations.
 
 ## On-device Source Recovery Preview
 
-From **Tools**, users may export a **bounded, read-only ZIP** containing
-DEX class and method inventories, Dalvik inspection text, Java-like
-pseudocode, and small resource previews. This is **not** original source,
-compilable Java, assemblable Smali, or a buildable Android Studio project.
-It operates offline and shows explicit incomplete-coverage warnings.
-See [Source Recovery](docs/SOURCE_RECOVERY.md) for contents and limits.
+Following APK import, the app automatically creates a **real source
+preview folder** under its Android app-specific external-files storage.
+It contains package-organized Java-like pseudocode (\`.java.txt\`),
+Dalvik inspection text, basic resource previews and a coverage report.
+Open **Tools → Browse Generated Code** to inspect individual files, or use
+**Export Source Preview ZIP** to copy the data elsewhere.
+This remains **non-compilable**, non-assemblable and read-only:
+it is not original Java/Kotlin/Flutter source or a buildable Android project.
+See [Source Recovery](docs/SOURCE_RECOVERY.md) for location and limits.
 
 ## Run locally
 

@@ -44,6 +44,17 @@ class SourceRecoveryBundle {
   static const maxSingleResource = 256 * 1024;
   static const maxOutputBytes = 24 * 1024 * 1024;
 
+  static String _safeClassPath(String name) {
+    final pieces = name.replaceAll('/', '.').split('.').take(16);
+    return pieces.map((part) {
+      final safe = part.replaceAll(RegExp(r'[^a-zA-Z0-9_$-]'), '_');
+      if (safe.isEmpty) {
+        return '_';
+      }
+      return safe.length > 50 ? safe.substring(0, 50) : safe;
+    }).join('/');
+  }
+
   /// Runs local decoding off the UI isolate. No server is contacted.
   static Future<SourceRecoveryResult> fromProject(ApkReport report) =>
       Isolate.run(() {
@@ -247,6 +258,14 @@ class SourceRecoveryBundle {
         textFile('$classFolder/methods.txt', methodInfo.toString());
         textFile('$classFolder/java_like.txt', javaLike.toString());
         textFile('$classFolder/dalvik.txt', dalvik.toString());
+        // Package-like directory tree. Filenames end in .txt because
+        // neither format is executable, compilable or assemblable source.
+        final friendlyPath = _safeClassPath(klass.name);
+        final sourceFile = '${friendlyPath}_$classIndex';
+        textFile('source/java_like/dex_${dexVisited.toString().padLeft(2, '0')}/'
+            '$sourceFile.java.txt', javaLike.toString());
+        textFile('source/dalvik/dex_${dexVisited.toString().padLeft(2, '0')}/'
+            '$sourceFile.dalvik.txt', dalvik.toString());
         records.add({
           'dex': dexName,
           'class': klass.name,
@@ -328,6 +347,7 @@ class SourceRecoveryBundle {
     textFile('README.md',
         '# DroidRE Source Recovery Preview\n\n'
         'This is NOT the original Android Studio/Flutter source project.\n'
+        'Generated code is also organized by package under source/.\n'
         'The Java-like files are NON-COMPILABLE pseudocode and the Dalvik '
         'files are NON-ASSEMBLABLE inspection reports.\n'
         'Original Kotlin/Java identifiers, comments, assets, configuration '
