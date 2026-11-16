@@ -204,7 +204,9 @@ class ElfSectionInspector {
       final alignment = is64 ? u64(at + 48) : u32(at + 32);
       // Section 0 is the reserved/null entry; NOBITS has no file bytes.
       final backed = kind != 0 && kind != 8;
-      if (backed) check(off, size);
+      if (backed) {
+        check(off, size);
+      }
       final displayName = readName(i, u32(at));
       sections.add(ElfSectionInfo(
         index: i,
