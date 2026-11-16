@@ -6,6 +6,7 @@ import 'package:flutter/foundation.dart';
 
 import '../models/apk_report.dart';
 import 'dex_inspector.dart';
+import 'dex_class_metadata_inspector.dart';
 import 'dex_method_pager.dart';
 import 'resource_inspector.dart';
 
@@ -201,7 +202,9 @@ class SourceRecoveryBundle {
           'DEX version: ${summary.version}\n'
           'Declared classes: ${summary.classes.length}\n'
           'Method ID count: ${summary.methodIdCount}\n'
-          'Bounded read-only reconstruction preview.\n');
+          'Bounded read-only reconstruction preview.\n'
+          'See CLASS_METADATA.json for hierarchy and field detail.\n');
+      final classMetadataRecords = <Map<String, Object?>>[];
 
       for (final klass in summary.classes) {
         if (classesExported >= maxClasses ||
@@ -212,12 +215,35 @@ class SourceRecoveryBundle {
         classesExported++;
         final classIndex = classesExported.toString().padLeft(4, '0');
         final classFolder = '$dexFolder/classes/$classIndex';
+        DexClassMetadata? metadata;
+        try {
+          metadata = DexClassMetadataInspector.inspectBytes(dex, klass);
+          if (metadata.truncated) {
+            warning('Class metadata preview incomplete for ${klass.name}: '
+                '${metadata.warnings.join('; ')}');
+          }
+        } catch (error) {
+          warning('Could not decode class metadata for ${klass.name}: '
+              '$error');
+        }
+        classMetadataRecords.add({
+          'class': klass.name,
+          'classDefIndex': klass.classDefIndex,
+          'declaredMethods': klass.methodCount,
+          'metadata': metadata?.toJson(),
+          'metadataAvailable': metadata != null,
+        });
+        final structure = metadata == null
+            ? '# Class metadata unavailable; see REPORT.json.\n'
+            : DexClassMetadataInspector.structurePreview(metadata);
         final classInfo = StringBuffer()
           ..writeln('Class: ${klass.name}')
           ..writeln('Flags: 0x${klass.accessFlags.toRadixString(16)}')
           ..writeln('Declared method count: ${klass.methodCount}')
           ..writeln('Source class index: ${klass.classDefIndex}')
-          ..writeln('No original Java source or Smali fidelity is claimed.');
+          ..writeln('No original Java source or Smali fidelity is claimed.')
+          ..writeln()
+          ..writeln(structure);
         textFile('$classFolder/class.txt', classInfo.toString());
 
         final methodInfo = StringBuffer();
@@ -225,9 +251,21 @@ class SourceRecoveryBundle {
           ..writeln('// READ-ONLY reconstruction preview.')
           ..writeln('// Java-like pseudo statements are not compilable Java.')
           ..writeln('// Class: ${klass.name}');
+        if (metadata != null) {
+          javaLike.writeln('// Superclass: '
+              '${metadata.superDescriptor ?? '(none)'}');
+          javaLike.writeln('// Interfaces: '
+              '${metadata.interfaces.join(', ')}');
+          for (final field in metadata.fields) {
+            javaLike.writeln('// Field: '
+                '${field.name}:${field.typeDescriptor}, '
+                'access=0x${field.accessFlags.toRadixString(16)}');
+          }
+        }
         final dalvik = StringBuffer()
           ..writeln('# Decoded Dalvik inspection, NOT assemblable Smali.')
-          ..writeln('# Class: ${klass.name}');
+          ..writeln('# Class: ${klass.name}')
+          ..writeln(structure);
         var start = 0;
         while (start < klass.methodCount &&
             methodsExported < maxMethods) {
@@ -295,9 +333,21 @@ class SourceRecoveryBundle {
           'class': klass.name,
           'declaredMethods': klass.methodCount,
           'processedMethods': start,
+          'decodedFields': metadata?.fields.length,
+          'declaredFields': metadata?.declaredFieldCount,
+          'superclass': metadata?.superDescriptor,
+          'metadataAvailable': metadata != null,
           'folder': classFolder,
         });
       }
+      textFile('$dexFolder/CLASS_METADATA.json',
+          const JsonEncoder.withIndent('  ').convert({
+        'schemaVersion': 1,
+        'dex': dexName,
+        'note': 'Structured class/field preview, not original source '
+            'or assemblable Smali',
+        'classes': classMetadataRecords,
+      }));
     }
 
     if (dexNames.isEmpty) {

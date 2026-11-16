@@ -42,7 +42,8 @@ for later imports. The app provides **Tools → Choose File Manager Folder**,
 
 Output includes package-organized Java-like pseudocode and Dalvik inspection
 text, decoded/raw resource previews, technology-specific analysis for
-Native Android, Flutter, React Native, Unity or NativeScript, and coverage
+Native Android, Flutter, React Native, Unity or NativeScript, and structured DEX class metadata (superclasses, interfaces, source-file
+hints and fields in \`CLASS_METADATA.json\`), with coverage
 warnings in \`REPORT.json\`. It is **not** original source, compilable Java,
 assemblable Smali or a rebuildable Android Studio/Flutter project.
 If the user cancels folder selection, importing the APK still succeeds.

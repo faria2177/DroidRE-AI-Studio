@@ -49,6 +49,7 @@ Documents/
     recovered/
       dex_01/
         INDEX.txt
+        CLASS_METADATA.json
         classes/0001/class.txt
         classes/0001/methods.txt
         classes/0001/java_like.txt
@@ -59,7 +60,12 @@ Documents/
 \`\`\`
 
 The file names are illustrative. Files vary with APK contents and bounded
-analysis results. \`REPORT.json\` includes source APK SHA-256, detected
+analysis results. Each DEX also includes `CLASS_METADATA.json` with
+class descriptors, access flags, superclass, implemented interfaces,
+source-file hints, and static/instance field declarations.
+`class.txt` and `source/dalvik/` now carry a Smali-like structural
+preview (`.class`, `.super`, `.implements`, `.field`). These are
+inspection reports, **NOT verified or assemblable Smali**. \`REPORT.json\` includes source APK SHA-256, detected
 framework, decoded DEX/class/method counts, resource inventory,
 partial-results flag and warnings.
 
@@ -87,9 +93,13 @@ may not be decoded.
 ## Scope, safety and limits
 
 - First 3 supported DEX files, 80 classes and 400 methods.
+- Up to 512 field declarations and 128 interfaces per class. Truncation
+  is reported instead of silently discarding additional declarations.
 - At most 32 small resources (256 KiB each, 4 MiB combined).
 - Source ZIP at most 24 MiB; SAF writer enforces a 48 MiB expanded
   data cap and 600-file cap.
+- Invalid class field/hierarchy metadata is reported while otherwise
+  decodable methods remain exportable. Field ID ownership is checked.
 - Large or unsupported methods/resources are skipped with diagnostics;
   incomplete analysis is not silently called complete.
 - All generated Java-like and Dalvik files use a final \`.txt\` extension,
@@ -108,7 +118,8 @@ build or CI run was requested**. Android 11–16 device validation is still
 required, especially for folder picker grants, document-provider
 performance, cancellation, storage quotas and File Manager access.
 
-See \`test/source_recovery_framework_test.dart\` and
-\`test/saf_source_recovery_service_test.dart\` for new tests.
+See \`test/source_recovery_framework_test.dart\`,
+\`test/saf_source_recovery_service_test.dart\` and
+\`test/dex_class_metadata_inspector_test.dart\` for regression tests.
 Future work includes more faithful Smali, deeper DEX/ELF decompilation,
 full resource recovery and a verified buildable project scaffold.
