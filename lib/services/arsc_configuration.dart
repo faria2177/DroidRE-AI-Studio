@@ -66,8 +66,12 @@ class ArscConfiguration {
     final mcc = word(4);
     final mnc = word(6);
     recognized(4, 8);
-    if (mcc != 0) qualifiers.add('mcc$mcc');
-    if (mnc != 0) qualifiers.add('mnc$mnc');
+    if (mcc != 0) {
+      qualifiers.add('mcc$mcc');
+    }
+    if (mnc != 0) {
+      qualifiers.add('mnc$mnc');
+    }
 
     // AOSP also supports packed 3-letter locale codes. Only plain
     // two-letter ASCII forms are decoded here. Other forms remain marked
@@ -104,8 +108,12 @@ class ArscConfiguration {
         3 => 'square',
         _ => null,
       };
-      if (byte(12) <= 3) recognized(12, 13);
-      if (orientation != null) qualifiers.add(orientation);
+      if (byte(12) <= 3) {
+        recognized(12, 13);
+      }
+      if (orientation != null) {
+        qualifiers.add(orientation);
+      }
     }
     int? density;
     if (size >= 16) {
@@ -133,7 +141,9 @@ class ArscConfiguration {
       final value = word(24);
       sdkVersion = value == 0 ? null : value;
       recognized(24, 26);
-      if (sdkVersion != null) qualifiers.add('v$sdkVersion');
+      if (sdkVersion != null) {
+        qualifiers.add('v$sdkVersion');
+      }
     }
 
     bool? nightMode;
@@ -161,22 +171,30 @@ class ArscConfiguration {
     if (size >= 34) {
       final widthDp = word(32);
       recognized(32, 34);
-      if (widthDp != 0) qualifiers.add('w${widthDp}dp');
+      if (widthDp != 0) {
+        qualifiers.add('w${widthDp}dp');
+      }
     }
     if (size >= 36) {
       final heightDp = word(34);
       recognized(34, 36);
-      if (heightDp != 0) qualifiers.add('h${heightDp}dp');
+      if (heightDp != 0) {
+        qualifiers.add('h${heightDp}dp');
+      }
     }
 
     var isDefault = true;
     var hasAdditional = false;
     for (var i = 4; i < size; i++) {
-      if (byte(i) == 0) continue;
+      if (byte(i) == 0) {
+        continue;
+      }
       isDefault = false;
       if (!known.contains(i)) hasAdditional = true;
     }
-    if (hasAdditional) qualifiers.add('additional qualifiers');
+    if (hasAdditional) {
+      qualifiers.add('additional qualifiers');
+    }
     return ArscConfiguration(
       chunkIndex: chunkIndex,
       qualifiers: isDefault
