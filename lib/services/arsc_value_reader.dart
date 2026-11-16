@@ -1,10 +1,12 @@
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
 
+import 'arsc_configuration.dart';
+
 @immutable
 class ArscValue {
   const ArscValue(this.id, this.name, this.value, this.config,
-      {this.dataType, this.rawData, this.bag});
+      {this.dataType, this.rawData, this.bag, this.configuration});
   final int id;
   final String name;
   final String value;
@@ -14,6 +16,7 @@ class ArscValue {
   final int? rawData;
   /// Structured style/array/plurals bag preview, if this is a complex entry.
   final ArscBag? bag;
+  final ArscConfiguration? configuration;
   String get idHex => '0x${id.toRadixString(16).padLeft(8, '0')}';
 }
 
@@ -239,6 +242,12 @@ class ArscValueReader {
         if (chunk.header < 24) {
           throw const FormatException('Invalid resource type header');
         }
+        final configuration = ArscConfiguration.parse(
+          r.bytes,
+          start: chunk.start + 20,
+          end: chunk.start + chunk.header,
+          chunkIndex: config,
+        );
         final typeId = r.u8(chunk.start + 8);
         final flags = r.u8(chunk.start + 9);
         final count = r.u32(chunk.start + 12);
@@ -319,6 +328,7 @@ class ArscValueReader {
                   '0x${parentId.toRadixString(16).padLeft(8, '0')}',
               config,
               bag: bag,
+              configuration: configuration,
             ));
             continue;
           }
@@ -337,6 +347,7 @@ class ArscValueReader {
             config,
             dataType: kind,
             rawData: data,
+            configuration: configuration,
           ));
         }
         if (truncated) break;

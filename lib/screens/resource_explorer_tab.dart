@@ -5,6 +5,7 @@ import '../services/resource_inspector.dart';
 import '../services/arsc_reference_resolver.dart';
 import '../services/arsc_style_resolver.dart';
 import '../services/arsc_inherited_style_inspector.dart';
+import '../services/arsc_variant_inspector.dart';
 
 class ResourceExplorerTab extends StatefulWidget {
   const ResourceExplorerTab({super.key, required this.report,
@@ -202,6 +203,7 @@ class _CompiledTableViewer extends StatefulWidget {
 
 class _CompiledTableViewerState extends State<_CompiledTableViewer> {
   String query = '';
+  bool onlyVariants = false;
 
   void _showStyleComparison(
       BuildContext context, ArscInheritedStyleReport report) {
@@ -267,13 +269,71 @@ class _CompiledTableViewerState extends State<_CompiledTableViewer> {
     );
   }
 
+
+  void _showConfigurations(
+      BuildContext context, ArscVariantComparison comparison) {
+    showDialog<void>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text('Resource configurations · ${comparison.resourceName}'),
+        content: SizedBox(
+          width: 620,
+          height: 420,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text('${comparison.variants.length} decoded configurations · '
+                  '${comparison.valuesDiffer ? 'Different raw values' : 'Matching raw values'}'),
+              if (comparison.duplicateQualifiers)
+                const Padding(
+                  padding: EdgeInsets.only(top: 6),
+                  child: Text('Multiple decoded variants have matching '
+                      'qualifiers. No runtime selection was attempted.'),
+                ),
+              const Padding(
+                padding: EdgeInsets.symmetric(vertical: 8),
+                child: Text('This compares only decoded ARSC entries. '
+                    'Android runtime matching, locale fallback, overlays '
+                    'and device configuration are not evaluated.'),
+              ),
+              Expanded(
+                child: ListView.builder(
+                  itemCount: comparison.variants.length,
+                  itemBuilder: (context, index) {
+                    final entry = comparison.variants[index];
+                    return ListTile(
+                      dense: true,
+                      title: SelectableText(
+                        entry.configuration?.label ??
+                            'Unknown config chunk ${entry.config}',
+                      ),
+                      subtitle: SelectableText(entry.value),
+                    );
+                  },
+                ),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('Close'),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final summary = widget.summary;
     final lowerQuery = query.toLowerCase();
     final resolver = ArscReferenceResolver(summary.values);
     final styles = ArscStyleResolver(summary.values);
+    final variants = ArscVariantInspector(summary.values);
     final matches = summary.values.where((entry) =>
+      (!onlyVariants || variants.comparisonFor(entry) != null) && (
       entry.idHex.toLowerCase().contains(lowerQuery) ||
       entry.name.toLowerCase().contains(lowerQuery) ||
       entry.value.toLowerCase().contains(lowerQuery) ||
@@ -285,8 +345,9 @@ class _CompiledTableViewerState extends State<_CompiledTableViewer> {
       (ArscInheritedStyleInspector.inspect(entry, styles)
           ?.attributes.any((item) =>
               item.label.toLowerCase().contains(lowerQuery) ||
-              item.value.toLowerCase().contains(lowerQuery)) ?? false)
-    ).toList();
+              item.value.toLowerCase().contains(lowerQuery)) ?? false) ||
+      (entry.configuration?.qualifiers.toLowerCase().contains(lowerQuery) ?? false)
+    )).toList();
 
     return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
       Text('Packages: ${summary.packageCount} · '
@@ -306,6 +367,14 @@ class _CompiledTableViewerState extends State<_CompiledTableViewer> {
           border: OutlineInputBorder(),
         ),
         onChanged: (value) => setState(() => query = value),
+      ),
+      const SizedBox(height: 8),
+      CheckboxListTile(
+        dense: true,
+        contentPadding: EdgeInsets.zero,
+        title: const Text('Show only resources with config variants'),
+        value: onlyVariants,
+        onChanged: (value) => setState(() => onlyVariants = value ?? false),
       ),
       if (summary.valueWarnings.isNotEmpty)
         Padding(
@@ -332,25 +401,41 @@ class _CompiledTableViewerState extends State<_CompiledTableViewer> {
               final style = styles.trace(entry);
               final inheritance =
                   ArscInheritedStyleInspector.inspect(entry, styles);
+              final configComparison = variants.comparisonFor(entry);
               return ListTile(
                 dense: true,
                 title: SelectableText('${entry.idHex}  ${entry.name}',
                   style: const TextStyle(fontFamily: 'monospace')),
-                trailing: inheritance == null
+                trailing: inheritance == null && configComparison == null
                     ? null
-                    : IconButton(
-                        tooltip: 'Compare inherited style attributes',
-                        icon: const Icon(Icons.compare_arrows),
-                        onPressed: () =>
-                            _showStyleComparison(context, inheritance),
+                    : Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          if (configComparison != null)
+                            IconButton(
+                              tooltip: 'Compare resource configurations',
+                              icon: const Icon(Icons.tune),
+                              onPressed: () => _showConfigurations(
+                                  context, configComparison),
+                            ),
+                          if (inheritance != null)
+                            IconButton(
+                              tooltip: 'Compare inherited style attributes',
+                              icon: const Icon(Icons.compare_arrows),
+                              onPressed: () =>
+                                  _showStyleComparison(context, inheritance),
+                            ),
+                        ],
                       ),
                 subtitle: SelectableText([
-                  '${entry.value}  (config chunk ${entry.config})',
+                  '${entry.value}  (${entry.configuration?.label ?? 'config chunk ${entry.config}'})',
                   if (reference != null)
                     'Reference: ${reference.description}',
                   if (style != null)
                     'Style parent chain (${style.status.name}): '
                       '${style.description}',
+                  if (configComparison != null)
+                    '${configComparison.variants.length} configuration variants',
                   if (inheritance != null)
                     '${inheritance.attributes.length} compared attribute IDs'
                     '${inheritance.partial ? ' · partial preview' : ''}',
