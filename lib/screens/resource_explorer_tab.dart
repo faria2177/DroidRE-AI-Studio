@@ -1,3 +1,7 @@
+import 'dart:convert';
+import 'dart:typed_data' as typed;
+
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 
 import '../models/apk_report.dart';
@@ -7,6 +11,9 @@ import '../services/arsc_style_resolver.dart';
 import '../services/arsc_inherited_style_inspector.dart';
 import '../services/arsc_variant_inspector.dart';
 import '../services/arsc_variant_diff_inspector.dart';
+import '../services/arsc_variant_reference_inspector.dart';
+import '../services/arsc_variant_report_exporter.dart';
+import '../services/arsc_resource_variant_filter.dart';
 
 class ResourceExplorerTab extends StatefulWidget {
   const ResourceExplorerTab({super.key, required this.report,
@@ -204,7 +211,7 @@ class _CompiledTableViewer extends StatefulWidget {
 
 class _CompiledTableViewerState extends State<_CompiledTableViewer> {
   String query = '';
-  bool onlyVariants = false;
+  ArscResourceFilter configFilter = ArscResourceFilter.all;
 
   void _showStyleComparison(
       BuildContext context, ArscInheritedStyleReport report) {
@@ -271,9 +278,45 @@ class _CompiledTableViewerState extends State<_CompiledTableViewer> {
   }
 
 
+
+  Future<void> _saveComparison(
+    ArscVariantComparison comparison, {
+    required bool csv,
+  }) async {
+    final report = ArscVariantReportExporter.build(
+        comparison, widget.summary.values);
+    final filename = '${report.fileStem}.${csv ? 'csv' : 'json'}';
+    try {
+      final result = await FilePicker.platform.saveFile(
+        dialogTitle: 'Save resource comparison',
+        fileName: filename,
+        bytes: typed.Uint8List.fromList(
+          utf8.encode(csv ? report.toCsv() : report.toJson()),
+        ),
+      );
+      if (!mounted) {
+        return;
+      }
+      if (result != null) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text('Saved $filename'
+              '${report.truncated ? ' (partial report)' : ''}'),
+        ));
+      }
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text('Export failed: $error'),
+      ));
+    }
+  }
+
   void _showConfigurations(
       BuildContext context, ArscVariantComparison comparison) {
     final baseline = ArscVariantDiffInspector.baseline(comparison);
+    final references = ArscVariantReferenceInspector(widget.summary.values);
     final defaultCount = comparison.variants
         .where((entry) => entry.configuration?.isDefault == true)
         .length;
@@ -313,6 +356,8 @@ class _CompiledTableViewerState extends State<_CompiledTableViewer> {
                     final entry = comparison.variants[index];
                     final detail = ArscVariantDiffInspector.compare(
                         baseline, entry);
+                    final referenceChanges = references.compare(
+                        baseline, entry);
                     return ExpansionTile(
                       key: ValueKey('${comparison.resourceId}:${entry.config}'),
                       title: Text(entry.configuration?.label ??
@@ -326,6 +371,22 @@ class _CompiledTableViewerState extends State<_CompiledTableViewer> {
                             padding: const EdgeInsets.symmetric(
                                 horizontal: 12, vertical: 4),
                             child: Text(warning),
+                          ),
+                        for (final reference in referenceChanges)
+                          Padding(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 12, vertical: 6),
+                            child: Align(
+                              alignment: Alignment.centerLeft,
+                              child: SelectableText(
+                                'Reference ${reference.change.name}: '
+                                '${reference.field}\n'
+                                'Baseline: ${reference.before ?? '(none)'}\n'
+                                'Variant: ${reference.after ?? '(none)'}',
+                                style: const TextStyle(
+                                    fontFamily: 'monospace', fontSize: 12),
+                              ),
+                            ),
                           ),
                         for (final field in detail.fields)
                           Padding(
@@ -351,6 +412,20 @@ class _CompiledTableViewerState extends State<_CompiledTableViewer> {
           ),
         ),
         actions: [
+          TextButton.icon(
+            onPressed: () async {
+              await _saveComparison(comparison, csv: true);
+            },
+            icon: const Icon(Icons.table_chart_outlined),
+            label: const Text('Save CSV'),
+          ),
+          TextButton.icon(
+            onPressed: () async {
+              await _saveComparison(comparison, csv: false);
+            },
+            icon: const Icon(Icons.data_object),
+            label: const Text('Save JSON'),
+          ),
           TextButton(
             onPressed: () => Navigator.pop(dialogContext),
             child: const Text('Close'),
@@ -367,8 +442,9 @@ class _CompiledTableViewerState extends State<_CompiledTableViewer> {
     final resolver = ArscReferenceResolver(summary.values);
     final styles = ArscStyleResolver(summary.values);
     final variants = ArscVariantInspector(summary.values);
+    final filters = ArscResourceVariantFilter(summary.values);
     final matches = summary.values.where((entry) =>
-      (!onlyVariants || variants.comparisonFor(entry) != null) && (
+      filters.matches(entry, configFilter) && (
       entry.idHex.toLowerCase().contains(lowerQuery) ||
       entry.name.toLowerCase().contains(lowerQuery) ||
       entry.value.toLowerCase().contains(lowerQuery) ||
@@ -404,12 +480,30 @@ class _CompiledTableViewerState extends State<_CompiledTableViewer> {
         onChanged: (value) => setState(() => query = value),
       ),
       const SizedBox(height: 8),
-      CheckboxListTile(
-        dense: true,
-        contentPadding: EdgeInsets.zero,
-        title: const Text('Show only resources with config variants'),
-        value: onlyVariants,
-        onChanged: (value) => setState(() => onlyVariants = value ?? false),
+      DropdownButtonFormField<ArscResourceFilter>(
+        key: ValueKey('configuration-filter:${configFilter.name}'),
+        initialValue: configFilter,
+        isExpanded: true,
+        decoration: const InputDecoration(
+          labelText: 'Resource configuration filter',
+          border: OutlineInputBorder(),
+          isDense: true,
+        ),
+        items: ArscResourceFilter.values.map((mode) {
+          final label = switch (mode) {
+            ArscResourceFilter.all => 'All decoded entries',
+            ArscResourceFilter.variants => 'Multiple configurations',
+            ArscResourceFilter.changed => 'Different values',
+            ArscResourceFilter.night => 'Night mode',
+            ArscResourceFilter.day => 'Not-night mode',
+            ArscResourceFilter.localized => 'Locale-specific',
+            ArscResourceFilter.density => 'Density-specific',
+            ArscResourceFilter.referenceDifferences => 'Reference differences',
+          };
+          return DropdownMenuItem(value: mode, child: Text(label));
+        }).toList(),
+        onChanged: (value) => setState(() =>
+            configFilter = value ?? ArscResourceFilter.all),
       ),
       if (summary.valueWarnings.isNotEmpty)
         Padding(
@@ -423,8 +517,9 @@ class _CompiledTableViewerState extends State<_CompiledTableViewer> {
           'decoded entries only. Attribute labels are shown only when an '
           '@attr entry is present. Missing parents may exist outside this '
           'preview. Tap a style comparison icon to inspect known raw '
-          'attribute precedence. Runtime theme merging, device configuration '
-          'selection and overlays remain unsupported.'),
+          'attribute precedence. Configuration comparisons can be saved '
+          'as JSON or UTF-8 CSV. Names and reference IDs are preview-only; '
+          'runtime selection and overlays remain unsupported.'),
       ),
       Expanded(child: matches.isEmpty
         ? const Center(child: Text('No matching decoded values'))
