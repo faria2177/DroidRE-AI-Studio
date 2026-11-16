@@ -463,19 +463,118 @@ class _DexBrowserTabState extends State<DexBrowserTab> {
                     onChanged: (value) => setState(() => query = value),
                   ),
                 ),
-                Expanded(child: ListView.builder(
-                  itemCount: matches.length,
-                  itemBuilder: (context, index) {
-                    final item = matches[index];
-                    return _DexClassMethodTile(
-                      key: ValueKey('${widget.report.id}:$selectedFile:${item.classDefIndex}'),
-                      klass: item,
-                      apkPath: widget.report.localPath,
-                      dexFile: selectedFile,
-                      onOpen: (method) => _showMethod(method, selectedFile, summary),
-                    );
-                  },
-                )),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                  child: Row(children: [
+                    Expanded(child: TextField(
+                      controller: methodSearchController,
+                      textInputAction: TextInputAction.search,
+                      decoration: InputDecoration(
+                        labelText: 'Search declared methods',
+                        hintText: 'onCreate, encrypt, decode...',
+                        prefixIcon: const Icon(Icons.code),
+                        border: const OutlineInputBorder(),
+                        suffixIcon: IconButton(
+                          tooltip: 'Clear method search',
+                          icon: const Icon(Icons.close),
+                          onPressed: () {
+                            methodSearchController.clear();
+                            setState(() {
+                              methodSearchTask = null;
+                              methodSearchError = null;
+                            });
+                          },
+                        ),
+                      ),
+                      onSubmitted: (_) => _searchMethods(selectedFile),
+                      onChanged: (_) {
+                        if (methodSearchTask != null || methodSearchError != null) {
+                          setState(() {
+                            methodSearchTask = null;
+                            methodSearchError = null;
+                          });
+                        }
+                      },
+                    )),
+                    const SizedBox(width: 8),
+                    IconButton.filled(
+                      tooltip: 'Find methods',
+                      onPressed: () => _searchMethods(selectedFile),
+                      icon: const Icon(Icons.search),
+                    ),
+                  ]),
+                ),
+                if (methodSearchError != null)
+                  Padding(
+                    padding: const EdgeInsets.all(8),
+                    child: Text(methodSearchError!,
+                      style: TextStyle(color: Theme.of(context).colorScheme.error)),
+                  ),
+                Expanded(child: methodSearchTask == null
+                  ? ListView.builder(
+                      itemCount: matches.length,
+                      itemBuilder: (context, index) {
+                        final item = matches[index];
+                        return _DexClassMethodTile(
+                          key: ValueKey('${widget.report.id}:$selectedFile:${item.classDefIndex}'),
+                          klass: item,
+                          apkPath: widget.report.localPath,
+                          dexFile: selectedFile,
+                          onOpen: (method) => _showMethod(method, selectedFile, summary),
+                        );
+                      },
+                    )
+                  : FutureBuilder<DexMethodSearchResult>(
+                      future: methodSearchTask,
+                      builder: (context, result) {
+                        if (result.hasError) {
+                          return _ErrorPanel(
+                            error: 'Method search failed: ${result.error}',
+                            onRetry: () => _searchMethods(selectedFile),
+                          );
+                        }
+                        if (!result.hasData) {
+                          return const Center(child: CircularProgressIndicator());
+                        }
+                        final found = result.data!;
+                        return Column(children: [
+                          Padding(
+                            padding: const EdgeInsets.all(12),
+                            child: Text(
+                              '${found.methods.length} matching declared methods · '
+                              '${found.scannedMethods} methods scanned',
+                            ),
+                          ),
+                          if (found.truncated)
+                            const Padding(
+                              padding: EdgeInsets.symmetric(horizontal: 12),
+                              child: Text(
+                                'Results limited for this scan. Narrow the query '
+                                'to find additional methods.',
+                              ),
+                            ),
+                          Expanded(
+                            child: found.methods.isEmpty
+                              ? const Center(child: Text('No matching declared methods'))
+                              : ListView.builder(
+                                  itemCount: found.methods.length,
+                                  itemBuilder: (context, index) {
+                                    final method = found.methods[index];
+                                    return ListTile(
+                                      title: Text(method.name),
+                                      subtitle: Text(
+                                        '${method.ownerName}\n${method.prototype}',
+                                      ),
+                                      trailing: const Icon(Icons.code),
+                                      onTap: () => _showMethod(
+                                          method, selectedFile, summary),
+                                    );
+                                  },
+                                ),
+                          ),
+                        ]);
+                      },
+                    )),
               ]);
             },
           )),
