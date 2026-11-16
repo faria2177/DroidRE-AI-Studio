@@ -10,6 +10,7 @@ import '../services/elf_inspector.dart';
 import '../services/elf_symbol_inspector.dart';
 import '../services/elf_dependency_inspector.dart';
 import '../services/elf_section_inspector.dart';
+import 'elf_section_hex_dialog.dart';
 import '../services/native_dependency_graph_inspector.dart';
 
 class DexBrowserTab extends StatefulWidget {
@@ -919,6 +920,22 @@ class _ElfBrowserTabState extends State<ElfBrowserTab> {
                                     'Flags: ${section.flags.isEmpty ? 'none' : section.flags.join(', ')} · '
                                     'Alignment: ${section.alignment} · '
                                     '${section.fileBacked ? 'file-backed' : 'no file payload'}',
+                                  ),
+                                  trailing: IconButton(
+                                    icon: const Icon(Icons.code),
+                                    tooltip: section.fileBacked && section.size > 0
+                                        ? 'View section hex and ASCII'
+                                        : 'Section has no file-backed bytes',
+                                    onPressed: section.fileBacked && section.size > 0
+                                        ? () => showDialog<void>(
+                                            context: context,
+                                            builder: (_) => ElfSectionHexDialog(
+                                              apkPath: widget.report.localPath,
+                                              entryName: selectedFile,
+                                              section: section,
+                                            ),
+                                          )
+                                        : null,
                                   ),
                                 );
                               },

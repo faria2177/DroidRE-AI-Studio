@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:droidre_ai_studio/services/elf_section_inspector.dart';
+import 'package:droidre_ai_studio/services/elf_section_hex_inspector.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 Uint8List makeElf64Sections({bool bigEndian = false}) {
@@ -172,6 +173,81 @@ void main() {
     ByteData.sublistView(strTable)
         .setUint16(62, 88, Endian.little);
     expect(() => ElfSectionInspector.inspectBytes(strTable),
+        throwsFormatException);
+  });
+
+  test('reads bounded hex and ASCII from a file-backed ELF64 section', () {
+    final bytes = makeElf64Sections();
+    bytes.setRange(0x80, 0x88, [
+      0x41, 0x00, 0x7f, 0x20, 0x5a, 0xff, 0x31, 0x0a,
+    ]);
+    final preview = ElfSectionHexInspector.inspectBytes(bytes, 1);
+    expect(preview.sectionName, '.text');
+    expect(preview.sectionSize, 8);
+    expect(preview.fileOffset, 0x80);
+    expect(preview.sectionOffset, 0);
+    expect(preview.bytesShown, 8);
+    expect(preview.hexDump, contains('0x00000080'));
+    expect(preview.hexDump, contains('41 00 7f 20 5a ff 31 0a'));
+    expect(preview.hexDump, contains('|A.. Z.1.|'));
+    expect(preview.hasNext, isFalse);
+    expect(preview.hasPrevious, isFalse);
+  });
+
+  test('paginates a section without reading past its boundary', () {
+    final bytes = makeElf64Sections();
+    for (var i = 0; i < 8; i++) {
+      bytes[0x80 + i] = 0x30 + i;
+    }
+    final first = ElfSectionHexInspector.inspectBytes(
+      bytes, 1, byteLimit: 3);
+    expect(first.bytesShown, 3);
+    expect(first.hasNext, isTrue);
+    expect(first.hasPrevious, isFalse);
+
+    final middle = ElfSectionHexInspector.inspectBytes(
+      bytes, 1, sectionOffset: 3, byteLimit: 3);
+    expect(middle.fileOffset, 0x83);
+    expect(middle.hexDump, contains('33 34 35'));
+    expect(middle.hasPrevious, isTrue);
+    expect(middle.hasNext, isTrue);
+
+    final last = ElfSectionHexInspector.inspectBytes(
+      bytes, 1, sectionOffset: 6, byteLimit: 3);
+    expect(last.bytesShown, 2);
+    expect(last.hasNext, isFalse);
+  });
+
+  test('rejects NOBITS, null, invalid index, and invalid preview pages', () {
+    final bytes = makeElf64Sections();
+    expect(() => ElfSectionHexInspector.inspectBytes(bytes, 3),
+        throwsFormatException); // .bss has no on-disk bytes
+    expect(() => ElfSectionHexInspector.inspectBytes(bytes, 0),
+        throwsFormatException); // NULL section is not file-backed
+    expect(() => ElfSectionHexInspector.inspectBytes(bytes, 15),
+        throwsFormatException);
+    expect(() => ElfSectionHexInspector.inspectBytes(bytes, -1),
+        throwsFormatException);
+    expect(() => ElfSectionHexInspector.inspectBytes(bytes, 1,
+        sectionOffset: 8), throwsFormatException);
+    expect(() => ElfSectionHexInspector.inspectBytes(bytes, 1,
+        sectionOffset: -1), throwsFormatException);
+    expect(() => ElfSectionHexInspector.inspectBytes(bytes, 1,
+        byteLimit: ElfSectionHexInspector.pageBytes + 1),
+        throwsFormatException);
+  });
+
+  test('reads big-endian ELF32 and refuses corrupted section offsets', () {
+    final big32 = ElfSectionHexInspector.inspectBytes(
+      makeElf32SectionsBigEndian(), 1);
+    expect(big32.sectionName, '.text');
+    expect(big32.fileOffset, 0xc0);
+    expect(big32.bytesShown, 12);
+
+    final corrupt = makeElf64Sections();
+    ByteData.sublistView(corrupt)
+        .setUint64(0x200 + 64 + 24, 0xffffffffffffffff, Endian.little);
+    expect(() => ElfSectionHexInspector.inspectBytes(corrupt, 1),
         throwsFormatException);
   });
 }
