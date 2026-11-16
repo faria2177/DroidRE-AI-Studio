@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../models/apk_report.dart';
 import '../services/resource_inspector.dart';
 import '../services/arsc_reference_resolver.dart';
+import '../services/arsc_style_resolver.dart';
 
 class ResourceExplorerTab extends StatefulWidget {
   const ResourceExplorerTab({super.key, required this.report,
@@ -206,11 +207,16 @@ class _CompiledTableViewerState extends State<_CompiledTableViewer> {
     final summary = widget.summary;
     final lowerQuery = query.toLowerCase();
     final resolver = ArscReferenceResolver(summary.values);
+    final styles = ArscStyleResolver(summary.values);
     final matches = summary.values.where((entry) =>
       entry.idHex.toLowerCase().contains(lowerQuery) ||
       entry.name.toLowerCase().contains(lowerQuery) ||
       entry.value.toLowerCase().contains(lowerQuery) ||
-      (resolver.trace(entry)?.description.toLowerCase().contains(lowerQuery) ?? false)).toList();
+      (resolver.trace(entry)?.description.toLowerCase().contains(lowerQuery) ?? false) ||
+      (styles.trace(entry)?.description.toLowerCase().contains(lowerQuery) ?? false) ||
+      (entry.bag?.items.any((item) =>
+          styles.attributeLabel(item.nameId).toLowerCase().contains(lowerQuery) ||
+          item.value.toLowerCase().contains(lowerQuery)) ?? false)).toList();
 
     return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
       Text('Packages: ${summary.packageCount} · '
@@ -239,10 +245,11 @@ class _CompiledTableViewerState extends State<_CompiledTableViewer> {
         ),
       const Padding(
         padding: EdgeInsets.symmetric(vertical: 6),
-        child: Text('Reference chains are traced within the decoded preview '
-          'only. Complex style/array/plural bags show bounded raw map items '
-          'and parent IDs, not resolved theme inheritance or overlays. '
-          'Configuration variants are not automatically selected.'),
+        child: Text('References and style-parent chains are traced within '
+          'decoded entries only. Attribute labels are shown only when an '
+          '@attr entry is present. Missing parents may exist outside this '
+          'preview; configuration selection, effective theme merging and '
+          'overlays remain unsupported.'),
       ),
       Expanded(child: matches.isEmpty
         ? const Center(child: Text('No matching decoded values'))
@@ -251,6 +258,7 @@ class _CompiledTableViewerState extends State<_CompiledTableViewer> {
             itemBuilder: (context, index) {
               final entry = matches[index];
               final reference = resolver.trace(entry);
+              final style = styles.trace(entry);
               return ListTile(
                 dense: true,
                 title: SelectableText('${entry.idHex}  ${entry.name}',
@@ -259,12 +267,15 @@ class _CompiledTableViewerState extends State<_CompiledTableViewer> {
                   '${entry.value}  (config chunk ${entry.config})',
                   if (reference != null)
                     'Reference: ${reference.description}',
+                  if (style != null)
+                    'Style parent chain (${style.status.name}): '
+                      '${style.description}',
                   if (entry.bag != null) ...[
                     'Bag parent: ${entry.bag!.parentHex} · '
                       '${entry.bag!.totalItems} raw map items'
                       '${entry.bag!.truncated ? ' (preview limited)' : ''}',
                     for (final item in entry.bag!.items)
-                      '${item.nameHex} = ${item.value}',
+                      '${styles.attributeLabel(item.nameId)} = ${item.value}',
                   ],
                 ].join('\n')),
               );
