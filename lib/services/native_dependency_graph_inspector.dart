@@ -1,4 +1,5 @@
 import 'dart:isolate';
+import 'dart:typed_data';
 
 import 'package:archive/archive_io.dart';
 import 'package:flutter/foundation.dart';
@@ -8,6 +9,7 @@ import 'elf_dependency_inspector.dart';
 enum NativeDependencyStatus {
   packaged,
   notPackaged,
+  packagedNotScanned,
   ambiguous,
 }
 
@@ -83,7 +85,7 @@ class NativeDependencyGraphInspector {
     String selectedPath,
     List<String> apkLibraries,
   ) => Isolate.run(() {
-    if (selectedPath.startsWith('/') ||
+    if (!selectedPath.contains('/') || selectedPath.startsWith('/') ||
         selectedPath.replaceAll('\\', '/').split('/').contains('..')) {
       throw const FormatException('Invalid native library path');
     }
@@ -148,7 +150,9 @@ class NativeDependencyGraphInspector {
             continue;
           }
           bytesRead += data.length;
-          reports[path] = ElfDependencyInspector.inspectBytes(data);
+          reports[path] = ElfDependencyInspector.inspectBytes(
+            Uint8List.fromList(data),
+          );
         } on FormatException catch (error) {
           failures[path] = error.message;
         }
@@ -161,6 +165,7 @@ class NativeDependencyGraphInspector {
       rootPath: selectedPath,
       abiDirectory: directory,
       paths: selected,
+      knownPaths: paths,
       reports: reports,
       failures: failures,
       additionalWarnings: warnings,
@@ -176,6 +181,7 @@ class NativeDependencyGraphInspector {
     required String abiDirectory,
     required List<String> paths,
     required Map<String, ElfDependencyReport> reports,
+    List<String>? knownPaths,
     Map<String, String> failures = const {},
     List<String> additionalWarnings = const [],
     bool truncated = false,
@@ -185,8 +191,9 @@ class NativeDependencyGraphInspector {
       throw const FormatException('Invalid native graph node list');
     }
     final aliases = <String, Set<String>>{};
-    for (final path in paths) {
-      if (!path.startsWith('$abiDirectory/') ||
+    for (final path in knownPaths ?? paths) {
+      if (!path.contains('/') ||
+          !path.startsWith('$abiDirectory/') ||
           path.substring(0, path.lastIndexOf('/')) != abiDirectory) {
         throw const FormatException('Native library outside selected ABI');
       }
@@ -198,6 +205,7 @@ class NativeDependencyGraphInspector {
       }
     }
 
+    final scannedPaths = paths.toSet();
     final nodes = <NativeDependencyNode>[
       for (final path in paths)
         NativeDependencyNode(
@@ -230,7 +238,9 @@ class NativeDependencyGraphInspector {
           edges.add(NativeDependencyEdge(
             fromPath: path,
             neededName: needed,
-            status: NativeDependencyStatus.packaged,
+            status: scannedPaths.contains(candidates.single)
+                ? NativeDependencyStatus.packaged
+                : NativeDependencyStatus.packagedNotScanned,
             toPath: candidates.single,
           ));
         } else {
