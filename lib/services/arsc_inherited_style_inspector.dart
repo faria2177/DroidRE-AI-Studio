@@ -93,7 +93,9 @@ class ArscInheritedStyleInspector {
           current.remove(id);
           continue;
         }
-        if (duplicated.contains(id)) continue;
+        if (duplicated.contains(id)) {
+          continue;
+        }
         current[id] = _KnownAttribute(item, style, current[id]);
       }
     }
@@ -125,7 +127,9 @@ class ArscInheritedStyleInspector {
       final closerSteps = <ArscValue>[];
       if (!fromChild) {
         for (final step in trace.steps) {
-          if (identical(step, attr.style)) break;
+          if (identical(step, attr.style)) {
+            break;
+          }
           closerSteps.add(step);
         }
       }
