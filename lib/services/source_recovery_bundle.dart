@@ -7,6 +7,8 @@ import 'package:flutter/foundation.dart';
 import '../models/apk_report.dart';
 import 'dex_inspector.dart';
 import 'dex_class_metadata_inspector.dart';
+import 'dex_class_annotation_inspector.dart';
+import 'dex_method_semantics_inspector.dart';
 import 'dex_method_pager.dart';
 import 'resource_inspector.dart';
 
@@ -126,6 +128,9 @@ class SourceRecoveryBundle {
     final records = <Map<String, Object?>>[];
     var classesExported = 0;
     var methodsExported = 0;
+    var tryRegionsExported = 0;
+    var referencesExported = 0;
+    var annotationTypesExported = 0;
     var dexVisited = 0;
     var resourcesExported = 0;
     var resourceBytes = 0;
@@ -205,6 +210,7 @@ class SourceRecoveryBundle {
           'Bounded read-only reconstruction preview.\n'
           'See CLASS_METADATA.json for hierarchy and field detail.\n');
       final classMetadataRecords = <Map<String, Object?>>[];
+      final annotationRecords = <Map<String, Object?>>[];
 
       for (final klass in summary.classes) {
         if (classesExported >= maxClasses ||
@@ -226,6 +232,25 @@ class SourceRecoveryBundle {
           warning('Could not decode class metadata for ${klass.name}: '
               '$error');
         }
+        DexClassAnnotationReport? annotations;
+        try {
+          annotations = DexClassAnnotationInspector.inspectBytes(dex, klass);
+          if (annotations.partial) {
+            warning('Incomplete annotation inventory for ${klass.name}: '
+                '${annotations.warnings.join('; ')}');
+          }
+          annotationTypesExported += annotations.targets.fold<int>(
+            0, (sum, item) => sum + item.annotations.length,
+          );
+        } catch (error) {
+          warning('Cannot decode annotation directory for '
+              '${klass.name}: $error');
+        }
+        annotationRecords.add({
+          'class': klass.name,
+          'classDefIndex': klass.classDefIndex,
+          'annotations': annotations?.toJson(),
+        });
         classMetadataRecords.add({
           'class': klass.name,
           'classDefIndex': klass.classDefIndex,
@@ -245,7 +270,12 @@ class SourceRecoveryBundle {
           ..writeln()
           ..writeln(structure);
         textFile('$classFolder/class.txt', classInfo.toString());
+        if (annotations != null && annotations.targets.isNotEmpty) {
+          textFile('$classFolder/annotations.json',
+              const JsonEncoder.withIndent('  ').convert(annotations.toJson()));
+        }
 
+        final methodSemanticRecords = <Map<String, Object?>>[];
         final methodInfo = StringBuffer();
         final javaLike = StringBuffer()
           ..writeln('// READ-ONLY reconstruction preview.')
@@ -294,6 +324,52 @@ class SourceRecoveryBundle {
                 'flags=0x${method.accessFlags.toRadixString(16)} '
                 'codeOffset=${method.codeOffset}');
             try {
+              final semantics = DexMethodSemanticsInspector.inspectBytes(
+                  dex, method);
+              tryRegionsExported += semantics.tries.length;
+              referencesExported += semantics.references.length;
+              methodSemanticRecords.add({
+                'method': method.name,
+                'prototype': method.prototype,
+                'methodIdIndex': method.methodIdIndex,
+                'codeOffset': method.codeOffset,
+                'analysis': semantics.toJson(),
+              });
+              if (semantics.partial) {
+                warning('Incomplete method semantics for '
+                    '${klass.name}.${method.name}: '
+                    '${semantics.warnings.join('; ')}');
+              }
+              if (semantics.tries.isNotEmpty) {
+                dalvik.writeln('    # Recovered exception ranges, '
+                    'code-unit offsets (read-only):');
+                for (final region in semantics.tries) {
+                  dalvik.writeln('    # try from '
+                      '${region.startAddress} to ${region.endAddress} '
+                      '(exclusive):');
+                  for (final handler in region.handlers) {
+                    dalvik.writeln('    # catch '
+                        '${handler.typeDescriptor ?? 'all'} '
+                        '-> ${handler.address}');
+                  }
+                }
+              }
+              if (semantics.references.isNotEmpty) {
+                dalvik.writeln('    # '
+                    '${semantics.references.length} referenced pool items; '
+                    'see method_semantics.json for instruction offsets');
+              }
+            } catch (error) {
+              warning('Method metadata failed: '
+                  '${klass.name}.${method.name}: $error');
+              methodSemanticRecords.add({
+                'method': method.name,
+                'prototype': method.prototype,
+                'methodIdIndex': method.methodIdIndex,
+                'error': error.toString(),
+              });
+            }
+            try {
               javaLike.writeln(DexInspector.pseudocodeMethodBytes(
                   dex, method));
               dalvik.writeln(DexInspector.disassembleMethodBytes(
@@ -318,6 +394,13 @@ class SourceRecoveryBundle {
               '(${klass.methodCount - start} remain or failed)');
         }
         textFile('$classFolder/methods.txt', methodInfo.toString());
+        textFile('$classFolder/method_semantics.json',
+            const JsonEncoder.withIndent('  ').convert({
+          'schemaVersion': 1,
+          'note': 'Read-only try/catch and referenced pool entries. '
+              'Not verified Smali, no cross-DEX resolution.',
+          'methods': methodSemanticRecords,
+        }));
         textFile('$classFolder/java_like.txt', javaLike.toString());
         textFile('$classFolder/dalvik.txt', dalvik.toString());
         // Package-like directory tree. Filenames end in .txt because
@@ -340,6 +423,14 @@ class SourceRecoveryBundle {
           'folder': classFolder,
         });
       }
+      textFile('$dexFolder/ANNOTATIONS_INDEX.json',
+          const JsonEncoder.withIndent('  ').convert({
+        'schemaVersion': 1,
+        'dex': dexName,
+        'note': 'Annotation type/visibility/count inventory only; '
+            'encoded values not parsed',
+        'classes': annotationRecords,
+      }));
       textFile('$dexFolder/CLASS_METADATA.json',
           const JsonEncoder.withIndent('  ').convert({
         'schemaVersion': 1,
@@ -442,6 +533,9 @@ class SourceRecoveryBundle {
       'dexFilesVisited': dexVisited,
       'classesExported': classesExported,
       'methodsExported': methodsExported,
+      'tryRegionsExported': tryRegionsExported,
+      'referencesExported': referencesExported,
+      'annotationTypesExported': annotationTypesExported,
       'resourcesExported': resourcesExported,
       'partial': partial,
       'warnings': warnings,

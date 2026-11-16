@@ -25,7 +25,7 @@ class MainActivity : FlutterActivity() {
     private val displayKey = "tree_label"
     private val maxZipBytes = 24 * 1024 * 1024
     private val maxUnpackedBytes = 48L * 1024 * 1024
-    private val maxFiles = 600
+    private val maxFiles = 900
     private val maxPreview = 64 * 1024
     private val workers = Executors.newSingleThreadExecutor()
     private val main = Handler(Looper.getMainLooper())

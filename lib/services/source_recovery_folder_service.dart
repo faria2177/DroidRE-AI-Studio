@@ -38,7 +38,7 @@ class SourceRecoveryFolderService {
 
   static const folderRoot = 'DroidRE_SourceProjects';
   static const maxUnpackedBytes = 48 * 1024 * 1024;
-  static const maxOutputFiles = 600;
+  static const maxOutputFiles = 900;
   static const maxPreviewBytes = 64 * 1024;
 
   static Future<Directory> storageRoot() async {

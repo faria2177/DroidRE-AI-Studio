@@ -50,8 +50,11 @@ Documents/
       dex_01/
         INDEX.txt
         CLASS_METADATA.json
+        ANNOTATIONS_INDEX.json
         classes/0001/class.txt
         classes/0001/methods.txt
+        classes/0001/method_semantics.json
+        classes/0001/annotations.json (if present)
         classes/0001/java_like.txt
         classes/0001/dalvik.txt
     resources/
@@ -65,7 +68,17 @@ class descriptors, access flags, superclass, implemented interfaces,
 source-file hints, and static/instance field declarations.
 `class.txt` and `source/dalvik/` now carry a Smali-like structural
 preview (`.class`, `.super`, `.implements`, `.field`). These are
-inspection reports, **NOT verified or assemblable Smali**. \`REPORT.json\` includes source APK SHA-256, detected
+inspection reports, **NOT verified or assemblable Smali**.
+
+The new `method_semantics.json` records bounded instruction-offset-aware
+references (string/type/field/method/polymorphic prototype, with unresolved
+dynamic IDs explicitly labeled) and DEX `code_item` try/catch ranges,
+typed handlers and catch-all handler addresses in 16-bit code units.
+`ANNOTATIONS_INDEX.json` records class, field, method and parameter
+annotation **type descriptors, visibility and encoded element counts**;
+it does not decode annotation values or reproduce assembly-ready directives.
+Malformed metadata is reported as partial, independently of other method
+decoding. `REPORT.json` includes source APK SHA-256, detected
 framework, decoded DEX/class/method counts, resource inventory,
 partial-results flag and warnings.
 
@@ -96,10 +109,14 @@ may not be decoded.
 - Up to 512 field declarations and 128 interfaces per class. Truncation
   is reported instead of silently discarding additional declarations.
 - At most 32 small resources (256 KiB each, 4 MiB combined).
+- Per method: 128 try regions, 256 handler groups, 64 typed catches per
+  handler, 160 indexed references and a 50,000-instruction inspection cap.
+- Per annotation directory: up to 64 owners per kind, 32 annotation types
+  per set and 32 parameter positions per method. Partial flags mark limits.
 - Source ZIP at most 24 MiB; SAF writer enforces a 48 MiB expanded
-  data cap and 600-file cap.
-- Invalid class field/hierarchy metadata is reported while otherwise
-  decodable methods remain exportable. Field ID ownership is checked.
+  data cap and 900-file cap.
+- Invalid class/field/exception/annotation metadata is reported while
+  independently decodable methods remain exportable. Field ID ownership is checked.
 - Large or unsupported methods/resources are skipped with diagnostics;
   incomplete analysis is not silently called complete.
 - All generated Java-like and Dalvik files use a final \`.txt\` extension,
@@ -120,6 +137,8 @@ performance, cancellation, storage quotas and File Manager access.
 
 See \`test/source_recovery_framework_test.dart\`,
 \`test/saf_source_recovery_service_test.dart\` and
-\`test/dex_class_metadata_inspector_test.dart\` for regression tests.
+\`test/dex_class_metadata_inspector_test.dart\`,
+\`test/dex_method_semantics_inspector_test.dart\`, and
+\`test/dex_class_annotation_inspector_test.dart\` for regression tests.
 Future work includes more faithful Smali, deeper DEX/ELF decompilation,
 full resource recovery and a verified buildable project scaffold.
