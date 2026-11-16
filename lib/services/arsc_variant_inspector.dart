@@ -32,7 +32,9 @@ class ArscVariantInspector {
 
   ArscVariantComparison? comparisonFor(ArscValue value) {
     final group = _byId[value.id];
-    if (group == null || group.length < 2) return null;
+    if (group == null || group.length < 2) {
+      return null;
+    }
     final ordered = List<ArscValue>.of(group)
       ..sort((a, b) => a.config.compareTo(b.config));
     final fingerprints = ordered.map(_fingerprint).toSet();
