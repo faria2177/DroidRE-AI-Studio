@@ -4,7 +4,7 @@ import 'package:flutter/foundation.dart';
 @immutable
 class ArscValue {
   const ArscValue(this.id, this.name, this.value, this.config,
-      {this.dataType, this.rawData});
+      {this.dataType, this.rawData, this.bag});
   final int id;
   final String name;
   final String value;
@@ -12,7 +12,31 @@ class ArscValue {
   /// Original Android Res_value type and data (not a resolved reference).
   final int? dataType;
   final int? rawData;
+  /// Structured style/array/plurals bag preview, if this is a complex entry.
+  final ArscBag? bag;
   String get idHex => '0x${id.toRadixString(16).padLeft(8, '0')}';
+}
+
+@immutable
+class ArscBag {
+  const ArscBag(this.parentId, this.items, this.totalItems, this.truncated);
+  final int parentId;
+  final List<ArscBagItem> items;
+  final int totalItems;
+  final bool truncated;
+  String get parentHex =>
+      '0x${parentId.toRadixString(16).padLeft(8, '0')}';
+}
+
+@immutable
+class ArscBagItem {
+  const ArscBagItem(this.nameId, this.value, this.dataType, this.rawData);
+  final int nameId;
+  final String value;
+  final int dataType;
+  final int rawData;
+  String get nameHex =>
+      '0x${nameId.toRadixString(16).padLeft(8, '0')}';
 }
 
 @immutable
@@ -137,12 +161,13 @@ class _Pool {
   }
 }
 
-/// Read-only extraction of simple compiled resource values. Complex bags,
-/// overlay mappings, and configuration selection are not resolved.
+/// Read-only extraction of simple values and bounded complex bag previews.
+/// Overlay mappings, style inheritance, and configuration selection are not resolved.
 class ArscValueReader {
   const ArscValueReader._();
   static const maxResults = 250;
   static const maxScannedSlots = 200000;
+  static const maxBagItems = 32;
 
   static ArscValueReport parse(Uint8List bytes, {
     int resultLimit = maxResults,
@@ -254,11 +279,49 @@ class ArscValueReader {
             throw const FormatException('ARSC entry header invalid');
           }
           r.check(entry, entrySize, chunk.end);
+          final key = keyPool.at(r.u32(entry + 4));
           if ((entryFlags & 1) != 0) {
-            warn('Complex bag/map entries skipped');
+            // ResTable_map_entry: ResTable_entry(8) + parent(4) + count(4).
+            // Each map is name(4) + Res_value(8).
+            if (entrySize < 16) {
+              warn('Complex bag entry malformed; skipped');
+              continue;
+            }
+            final parentId = r.u32(entry + 8);
+            final countItems = r.u32(entry + 12);
+            final mapStart = entry + entrySize;
+            if (countItems > (chunk.end - mapStart) ~/ 12) {
+              throw const FormatException('ARSC bag maps exceed type chunk');
+            }
+            final take = countItems < maxBagItems ? countItems : maxBagItems;
+            final items = <ArscBagItem>[];
+            for (var mapIndex = 0; mapIndex < take; mapIndex++) {
+              final mapAt = mapStart + mapIndex * 12;
+              final nameId = r.u32(mapAt);
+              final valueAt = mapAt + 4;
+              if (r.u16(valueAt) < 8) {
+                throw const FormatException('ARSC bag value header invalid');
+              }
+              final kind = r.u8(valueAt + 3);
+              final data = r.u32(valueAt + 4);
+              items.add(ArscBagItem(nameId,
+                _formatValue(r, global, valueAt, kind, data), kind, data));
+            }
+            if (countItems > maxBagItems) {
+              warn('Complex bag preview limited to $maxBagItems items');
+            }
+            final bag = ArscBag(
+                parentId, items, countItems, countItems > maxBagItems);
+            values.add(ArscValue(
+              (packageId << 24) | ((typeId + typeIdOffset) << 16) | entryId,
+              '@$typeName/$key',
+              'Bag: $countItems items, parent '
+                  '0x${parentId.toRadixString(16).padLeft(8, '0')}',
+              config,
+              bag: bag,
+            ));
             continue;
           }
-          final key = keyPool.at(r.u32(entry + 4));
           final valueAt = entry + entrySize;
           r.check(valueAt, 8, chunk.end);
           if (r.u16(valueAt) < 8) {
@@ -266,19 +329,7 @@ class ArscValueReader {
           }
           final kind = r.u8(valueAt + 3);
           final data = r.u32(valueAt + 4);
-          final value = switch (kind) {
-            0x00 => 'null',
-            0x01 => '@0x${data.toRadixString(16).padLeft(8, '0')}',
-            0x02 => '?0x${data.toRadixString(16).padLeft(8, '0')}',
-            0x03 => global?.at(data) ?? 'string@$data (unresolved)',
-            0x04 => r.data.getFloat32(valueAt + 4, Endian.little).toString(),
-            0x05 || 0x06 => 'complex:0x${data.toRadixString(16)}',
-            0x10 => data.toSigned(32).toString(),
-            0x11 => '0x${data.toRadixString(16)}',
-            0x12 => data == 0 ? 'false' : 'true',
-            >= 0x1c && <= 0x1f => '#${data.toRadixString(16).padLeft(8, '0')}',
-            _ => 'type:0x${kind.toRadixString(16)} raw:0x${data.toRadixString(16)}',
-          };
+          final value = _formatValue(r, global, valueAt, kind, data);
           values.add(ArscValue(
             (packageId << 24) | ((typeId + typeIdOffset) << 16) | entryId,
             '@$typeName/$key',
@@ -293,5 +344,24 @@ class ArscValueReader {
       if (truncated) break;
     }
     return ArscValueReport(values, scanned, truncated, warnings);
+  }
+
+  static String _formatValue(
+      _Reader r, _Pool? global, int valueAt, int kind, int data) {
+    return switch (kind) {
+      0x00 => 'null',
+      0x01 => '@0x${data.toRadixString(16).padLeft(8, '0')}',
+      0x02 => '?0x${data.toRadixString(16).padLeft(8, '0')}',
+      0x03 => global?.at(data) ?? 'string@$data (unresolved)',
+      0x04 => r.data.getFloat32(valueAt + 4, Endian.little).toString(),
+      0x05 || 0x06 => 'complex:0x${data.toRadixString(16)}',
+      0x10 => data.toSigned(32).toString(),
+      0x11 => '0x${data.toRadixString(16)}',
+      0x12 => data == 0 ? 'false' : 'true',
+      >= 0x1c && <= 0x1f =>
+        '#${data.toRadixString(16).padLeft(8, '0')}',
+      _ => 'type:0x${kind.toRadixString(16)} '
+           'raw:0x${data.toRadixString(16)}',
+    };
   }
 }
