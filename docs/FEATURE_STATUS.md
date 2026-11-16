@@ -16,7 +16,7 @@ Do not mistake a visible tool card for a completed reverse-engineering engine.
 | Multi-DEX call graph | Static, bounded | Prioritizes the selected DEX and scans up to 24 DEX files, 6,000 method bodies and 1.5 million code units; matches method signatures across DEX files and displays direct and two-hop calls |
 | Java-like pseudocode | Approximate viewer | Converts common Dalvik instructions into Java-like annotated statements with original PC; not a real Java decompiler |
 | Smali preview | Read-only | Code offset/descriptor and decoded instructions; not Java reconstruction or round-trip Smali assembly |
-| APK Resources | XML viewer | `res/`, `assets/`, `resources.arsc` package names, text/image/hex previews and binary XML hierarchy |
+| APK Resources | XML and bounded simple values | `res/`, `assets/`, `resources.arsc` package names plus up to 250 simple resource IDs/types/keys/values with search, text/image/hex previews and binary XML hierarchy; no complex bag or overlay resolution |
 | AI code explanations | Opt-in integrated | Method prompts include resolved symbols and instruction-offset evidence requests; review/edit prompt → consent → send to chosen provider; no binary APK upload |
 | Native `.so` | Basic ELF inspector | On-demand ELF32/ELF64 headers, architecture, byte order and counts; no symbols/disassembly |
 | Framework detection | Heuristic | Shows indicators, not certainty |

@@ -1,0 +1,141 @@
+import 'dart:convert';
+import 'dart:typed_data';
+
+import 'package:droidre_ai_studio/services/arsc_value_reader.dart';
+import 'package:droidre_ai_studio/services/resource_inspector.dart';
+import 'package:flutter_test/flutter_test.dart';
+
+Uint8List pool(List<String> strings) {
+  final data = <int>[];
+  final offsets = <int>[];
+  for (final item in strings) {
+    final encoded = utf8.encode(item);
+    offsets.add(data.length);
+    data.addAll([item.codeUnits.length, encoded.length, ...encoded, 0]);
+  }
+  final base = 28 + 4 * strings.length;
+  final size = (base + data.length + 3) & ~3;
+  final bytes = Uint8List(size);
+  final view = ByteData.sublistView(bytes);
+  void u16(int at, int value) => view.setUint16(at, value, Endian.little);
+  void u32(int at, int value) => view.setUint32(at, value, Endian.little);
+  u16(0, 1);
+  u16(2, 28);
+  u32(4, size);
+  u32(8, strings.length);
+  u32(16, 0x100); // UTF-8
+  u32(20, base);
+  for (var i = 0; i < offsets.length; i++) {
+    u32(28 + i * 4, offsets[i]);
+  }
+  bytes.setRange(base, base + data.length, data);
+  return bytes;
+}
+
+Uint8List resourceTableWithValue({
+  String value = 'Hello',
+  int typeFlags = 0,
+  bool complex = false,
+}) {
+  final global = pool([value]);
+  final types = pool(['string']);
+  final keys = pool(['title']);
+  final type = Uint8List(48);
+  final t = ByteData.sublistView(type);
+  void t16(int at, int value) => t.setUint16(at, value, Endian.little);
+  void t32(int at, int value) => t.setUint32(at, value, Endian.little);
+  t16(0, 0x0201);
+  t16(2, 28);
+  t32(4, type.length);
+  type[8] = 1; // Type index
+  type[9] = typeFlags;
+  t32(12, 1); // One entry
+  t32(16, 32); // entriesStart
+  t32(20, 8); // Configuration bytes
+  if (typeFlags == 1) {
+    t16(28, 4); // Sparse entry index
+    t16(30, 0); // offset in 4-byte units
+  } else if (typeFlags == 2) {
+    t16(28, 0); // 16-bit offset
+  } else {
+    t32(28, 0); // 32-bit offset
+  }
+  t16(32, 8); // ResTable_entry size
+  t16(34, complex ? 1 : 0);
+  t32(36, 0); // key string index
+  t16(40, 8); // Res_value size
+  type[43] = 3; // string
+  t32(44, 0); // global pool string index
+
+  final packageSize = 288 + types.length + keys.length + type.length;
+  final pkg = Uint8List(packageSize);
+  final p = ByteData.sublistView(pkg);
+  void p16(int at, int value) => p.setUint16(at, value, Endian.little);
+  void p32(int at, int value) => p.setUint32(at, value, Endian.little);
+  p16(0, 0x0200);
+  p16(2, 288);
+  p32(4, pkg.length);
+  p32(8, 0x7f);
+  const name = 'com.demo';
+  for (var i = 0; i < name.length; i++) {
+    p16(12 + 2 * i, name.codeUnitAt(i));
+  }
+  p32(268, 288);
+  p32(276, 288 + types.length);
+  pkg.setRange(288, 288 + types.length, types);
+  pkg.setRange(288 + types.length, 288 + types.length + keys.length, keys);
+  pkg.setRange(288 + types.length + keys.length, pkg.length, type);
+
+  final bytes = Uint8List(12 + global.length + pkg.length);
+  final header = ByteData.sublistView(bytes);
+  header.setUint16(0, 2, Endian.little);
+  header.setUint16(2, 12, Endian.little);
+  header.setUint32(4, bytes.length, Endian.little);
+  header.setUint32(8, 1, Endian.little);
+  bytes.setRange(12, 12 + global.length, global);
+  bytes.setRange(12 + global.length, bytes.length, pkg);
+  return bytes;
+}
+
+void main() {
+  test('resolves compiled ID, type/key and pooled UTF-8 value', () {
+    final bytes = resourceTableWithValue(value: 'বাংলা');
+    final result = ArscValueReader.parse(bytes);
+    expect(result.values, hasLength(1));
+    expect(result.values.single.idHex, '0x7f010000');
+    expect(result.values.single.name, '@string/title');
+    expect(result.values.single.value, 'বাংলা');
+    expect(result.truncated, isFalse);
+    final summary = ResourceInspector.inspectTableBytes(bytes);
+    expect(summary.values.single.value, 'বাংলা');
+    expect(summary.packages.single, contains('com.demo'));
+  });
+
+  test('handles offset16 and sparse entry indexes', () {
+    final offset16 = ArscValueReader.parse(
+      resourceTableWithValue(typeFlags: 2));
+    expect(offset16.values.single.idHex, '0x7f010000');
+    final sparse = ArscValueReader.parse(
+      resourceTableWithValue(typeFlags: 1));
+    expect(sparse.values.single.idHex, '0x7f010004');
+  });
+
+  test('skips complex entries without presenting fabricated values', () {
+    final result = ArscValueReader.parse(
+      resourceTableWithValue(complex: true));
+    expect(result.values, isEmpty);
+    expect(result.warnings.join(' '), contains('Complex'));
+  });
+
+  test('reports bounded results and rejects invalid entry offsets', () {
+    final input = resourceTableWithValue();
+    final limited = ArscValueReader.parse(input, scanLimit: 1);
+    expect(limited.values, hasLength(1));
+    expect(limited.truncated, isFalse);
+    final corrupt = Uint8List.fromList(input);
+    final typeOffset = corrupt.length - 48;
+    ByteData.sublistView(corrupt).setUint32(
+      typeOffset + 28, 0xfffffff0, Endian.little);
+    expect(() => ArscValueReader.parse(corrupt), throwsFormatException);
+  });
+}
