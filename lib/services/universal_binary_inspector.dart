@@ -6,6 +6,7 @@ import 'dart:typed_data';
 import 'package:crypto/crypto.dart';
 
 import 'elf_inspector.dart';
+import 'pe_directory_inspector.dart';
 
 class UniversalBinaryInspector {
   const UniversalBinaryInspector._();
@@ -38,7 +39,9 @@ class UniversalBinaryInspector {
     };
     if (bytes.length >= 2 && bytes[0] == 0x4d && bytes[1] == 0x5a) {
       try {
-        return {...common, ...pe(bytes)};
+        final header = pe(bytes);
+        return {...common, ...header,
+          'directoryAnalysis': PeDirectoryInspector.inspect(bytes, header)};
       } on FormatException catch (e) {
         return {...common, 'kind': 'MZ candidate', 'warning': e.message};
       }
@@ -141,7 +144,7 @@ class UniversalBinaryInspector {
       'sections': sections,
       'directories': directories,
       'directoryCount': directoryCount,
-      'note': 'Declared directory addresses only; no import/export or certificate parsing.',
+      'note': 'Declared directory addresses; bounded table evidence in directoryAnalysis. No certificate verification.',
     };
   }
 
