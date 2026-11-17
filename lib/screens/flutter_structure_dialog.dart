@@ -58,7 +58,7 @@ class _FlutterStructureDialogState extends State<FlutterStructureDialog> {
       final report = snapshot.data;
       final binary = report?['binary'] as Map<String, Object?>?;
       final assets = report?['assets'] as Map<String, Object?>?;
-      final rows = ((_assets ? assets?['entries'] : binary?['strings']) as List? ?? [])
+      final rows = ((_assets ? (assets?['entries']) : (binary?['strings'])) as List? ?? [])
           .whereType<Map>().where((item) =>
              '${item['path'] ?? item['text']} ${item['kind']}'
              .toLowerCase().contains(_query.toLowerCase())).toList();
