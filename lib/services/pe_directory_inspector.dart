@@ -1,6 +1,8 @@
 import 'dart:convert';
 import 'dart:typed_data';
 
+import 'dotnet_metadata_inspector.dart';
+
 /// Reads directory evidence from a previously validated PE header.
 class PeDirectoryInspector {
   PeDirectoryInspector._(this.bytes, this.header) : data = ByteData.sublistView(bytes);
@@ -247,7 +249,14 @@ class PeDirectoryInspector {
     final version = ascii.decode(bytes.sublist(offset + 16, offset + 16 + versionLength),
         allowInvalid: true).split('\u0000').first;
     final flags = _u32(at + 16);
+    Map<String, Object?> streams;
+    try {
+      streams = DotnetMetadataInspector.inspect(bytes, offset, metaSize);
+    } on FormatException catch (e) {
+      streams = {'status': 'unresolved', 'warning': e.message};
+    }
     return {'status': 'managed-metadata-observed', 'partial': true,
+      'streamAnalysis': streams,
       'runtimeMajor': _u16(at + 4), 'runtimeMinor': _u16(at + 6),
       'metadataVersion': version, 'metadataRva': meta, 'metadataBytes': metaSize,
       'ilOnlyFlag': (flags & 1) != 0,

@@ -8,6 +8,7 @@ import 'package:flutter/services.dart';
 
 import '../services/local_export_service.dart';
 import '../services/universal_binary_inspector.dart';
+import 'ilspy_recovery_screen.dart';
 
 class UniversalBinaryScreen extends StatefulWidget {
   const UniversalBinaryScreen({super.key});
@@ -146,6 +147,12 @@ class _UniversalBinaryScreenState extends State<UniversalBinaryScreen> {
           ExpansionTile(title: Text('${_info!['kind']} · ${bytes.length} bytes'),
             children: [SelectableText(const JsonEncoder.withIndent('  ').convert(_info),
                 style: const TextStyle(fontFamily: 'monospace', fontSize: 12))]),
+          if (Platform.isWindows && _info?['directoryAnalysis'] is Map &&
+              ((_info!['directoryAnalysis'] as Map)['clr'] as Map)['status'] == 'managed-metadata-observed')
+            OutlinedButton.icon(onPressed: _busy ? null : () => Navigator.of(context).push(
+              MaterialPageRoute<void>(builder: (_) => IlspyRecoveryScreen(
+                input: _path!, hash: _info!['sha256'] as String))),
+              icon: const Icon(Icons.code), label: const Text('.NET IL & C# Recovery')),
           TextField(controller: _offset, enabled: !_busy,
             decoration: const InputDecoration(labelText: 'File offset (hex)')),
           Wrap(spacing: 8, children: [
