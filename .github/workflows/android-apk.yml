@@ -6,6 +6,8 @@ on:
     branches: [main]
     paths:
       - 'pubspec.yaml'
+      - 'test/ai_studio_widget_test.dart'
+      - 'test/ai_chat_service_test.dart'
       - '.github/workflows/android-apk.yml'
 
 permissions:

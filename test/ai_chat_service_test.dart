@@ -6,6 +6,23 @@ import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 
 void main() {
+  test('connection prompt and reviewed prompt use only supplied user text', () async {
+    final messages = <String>[];
+    final service = AiChatService(client: MockClient((request) async {
+      final body = jsonDecode(request.body) as Map;
+      final user = (body['messages'] as List).whereType<Map>()
+        .singleWhere((m) => m['role'] == 'user');
+      messages.add(user['content'] as String);
+      expect(request.headers['Authorization'], 'Bearer test-key');
+      return http.Response('{"choices":[{"message":{"content":"OK"}}]}', 200);
+    }));
+    for (final prompt in ['Reply with OK only.', 'private source sample']) {
+      expect(await service.complete(endpoint: aiEndpoints.first,
+        model: 'openrouter/free', apiKey: 'test-key', prompt: prompt), 'OK');
+    }
+    expect(messages, ['Reply with OK only.', 'private source sample']);
+    service.close();
+  });
   test('Gemini native catalog filters generation models and calls native endpoint', () async {
     final ep = aiEndpoints.singleWhere((e) => e.protocol == AiProtocol.gemini);
     final service = AiChatService(client: MockClient((request) async {

@@ -5,43 +5,63 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 
+/// Keep widget tests independent of HTTP stream scheduling in fake time.
+/// Actual provider requests and response parsing are tested separately.
+class _RecordingAiService extends AiChatService {
+  final prompts = <String>[];
+  final keys = <String>[];
+
+  @override
+  Future<String> complete({
+    required AiEndpoint endpoint,
+    required String model,
+    required String apiKey,
+    required String prompt,
+  }) {
+    prompts.add(prompt);
+    keys.add(apiKey);
+    return Future.value('Provider response');
+  }
+}
+
 void main() {
   testWidgets('connection check sends no project code and reviewed Send sends it', (tester) async {
-    final prompts = <String>[];
-    final service = AiChatService(client: MockClient((request) async {
-      final body = request.body;
-      expect(request.headers['Authorization'], 'Bearer test-key');
-      prompts.add(body);
-      return http.Response('{"choices":[{"message":{"content":"Provider response"}}]}', 200);
-    }));
+    tester.view.physicalSize = const Size(900, 1600);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final service = _RecordingAiService();
     await tester.pumpWidget(MaterialApp(home: Scaffold(body:
       AiStudioScreen(initialPrompt: 'private source sample', chatService: service))));
     final scroll = find.byType(Scrollable).first;
     final keyField = find.widgetWithText(TextField, 'API key (session only)');
     await tester.scrollUntilVisible(keyField, 150, scrollable: scroll);
     await tester.enterText(keyField, 'test-key');
-    await tester.testTextInput.receiveAction(TextInputAction.done);
-    await tester.pumpAndSettle();
+    FocusManager.instance.primaryFocus?.unfocus();
+    await tester.pump();
     final connection = find.text('Test connection (sends OK prompt only; may use quota)');
     await tester.scrollUntilVisible(connection, 120, scrollable: scroll);
     await tester.tap(connection);
-    await tester.pumpAndSettle();
-    expect(prompts.length, 1);
-    expect(prompts.single, contains('Reply with OK only.'));
-    expect(prompts.single, isNot(contains('private source sample')));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
+    expect(service.prompts, ['Reply with OK only.']);
+    expect(service.keys, ['test-key']);
+    expect(find.textContaining('Connection test succeeded'), findsOneWidget);
     final consent = find.text('I reviewed the extracted code and agree to send this text to the selected AI provider');
     await tester.scrollUntilVisible(consent, 150, scrollable: scroll);
     await tester.tap(consent);
-    await tester.pumpAndSettle();
+    await tester.pump();
     final send = find.text('Send to selected provider');
     await tester.scrollUntilVisible(send, 150, scrollable: scroll);
     await tester.tap(send);
-    await tester.pumpAndSettle();
-    expect(prompts.length, 2);
-    expect(prompts.last, contains('private source sample'));
-    final output = find.textContaining('Provider response');
-    await tester.scrollUntilVisible(output.last, 120, scrollable: scroll);
-    expect(output, findsWidgets);
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
+    expect(service.prompts, ['Reply with OK only.', 'private source sample']);
+    expect(service.keys, ['test-key', 'test-key']);
+    final output = find.text('Provider: OpenRouter\n\nProvider response');
+    await tester.scrollUntilVisible(output, 120, scrollable: scroll);
+    expect(output, findsOneWidget);
+    await tester.pumpWidget(const SizedBox.shrink());
   });
   testWidgets('new inspector draft retains key/model and requires renewed consent', (tester) async {
     final service = AiChatService(client: MockClient((_) async =>
