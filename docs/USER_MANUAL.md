@@ -94,3 +94,7 @@ Tools → Split APK Set Preflight selects local APKs and compares manifest ident
 Tools → Ghidra Native Decompiler uses an installed compatible JDK/Ghidra. Expanded block edges and Graphviz DOT available for sampled functions.
 Workspace → Compare original and draft. AI Agent → Export evidence report or refine research. ADB → Live Logcat for 20 seconds with stop. Universal Tool Manager → detect candidate paths and check version after explicit trust.
 See module-specific documents for limits and remaining release gates.
+
+## 0.9.1 AI setup
+
+Choose provider, enter its own key, fetch a generation model or enter an eligible model ID, then press Test connection. This uses a fixed OK prompt, not the project. Review actual code, tick consent and press Send. Inspector drafts no longer reset provider settings. Keys retained in memory, not disk; clear using Clear session API keys. See AI_STUDIO_TROUBLESHOOTING.md. Agent supports explicit save/restore/clear research plan and current-source recheck. Workspace suggestions are current-file lexical declarations. Split APK signer verification needs trusted JDK and SDK apksigner.jar.

@@ -1827,7 +1827,7 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
           ),
           const ListTile(
             leading: Icon(Icons.build_circle_outlined),
-            title: Text('Version 0.9.0 — Preview'),
+            title: Text('Version 0.9.1 — Preview'),
             subtitle: Text('See docs/FEATURE_STATUS.md for engine limitations'),
           ),
         ],

@@ -1,4 +1,4 @@
-# Phase 42 — 0.9.0 development preview readiness
+# Phase 42 — 0.9.1 development preview readiness
 
 Do not label this version 1.0 production-ready. Phases are development workstreams,
 not a percentage estimate of verified functionality.
@@ -45,13 +45,15 @@ device build has been provided or verified; the gate stays open.
 | 32 | HBC 76 function/header/operand preview and simple register pseudocode | Other HBC versions, overflow headers, full JS CFG and real fixtures |
 | 33 | Literal index and classic IL2CPP 27/29 type/method metadata mapping | Actual Unity fixtures, native address registration and source/body recovery |
 | 34 | Headless Ghidra block edges, DOT and pinned Linux synthetic smoke | Windows tool/runtime validation, interactive full CFG |
-| 35 | Split APK manifest identity checks | Cryptographic split signer/dependency checks, merge/rebuild, in-app signing |
+| 35 | Split APK manifest identity and optional SDK current signer-set verification | Actual SDK runtime check, dependencies, merge/rebuild, in-app signing |
 | 36 | Bounded foreground live Logcat | Physical device tests, debugger and broader runtime inspection |
-| 37 | Original/draft line diff | Language server, autocomplete, persistent code versions |
-| 38 | Reviewed AI report export and refine/research loop | Persistent context and semantic report verification / provider tests |
+| 37 | Original/draft line diff and lexical declaration suggestions | Semantic language server, persistent code versions |
+| 38 | Reviewed AI report export, refine loop, opt-in saved research plan and excerpt freshness check | Semantic report verification / live provider tests |
 | 39 | Common tool path detection, version commands and install links | Runtime compatibility matrix, automatic configuration, actual local tool checks |
 | 40 | Pruned bounded directory traversal | Large project indexing, RAM/latency measurements and benchmark |
 | 41 | Manifest/member parser hardening and deterministic malformed-header tests | Full security audit, broader fuzzing and real device QA |
 | 42 | 0.9.0 preview version, documentation and same-commit build workflows | Verified production credentials, full integration/device validation and signed release |
 
 No production tag has been created. The Android workflow remains test-signed and Windows setup remains unsigned. Actual owner signing requires local keys and verification using the existing owner signing helper. The pinned Ghidra synthetic integration workflow is independent of Android and Flutter packaging.
+
+0.9.1 additionally addresses lost AI setup across navigation and inspector drafts, model/authentication diagnostics, native Gemini and a free-router choice. Mock tests verify request/response and widget behavior. A real account with valid provider credentials is still needed to verify live access. See AI_STUDIO_TROUBLESHOOTING.md.

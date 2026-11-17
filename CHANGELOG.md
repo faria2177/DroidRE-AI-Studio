@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.9.1+11 — AI Studio maintenance preview
+
+Preserve the AI session when navigating tabs or importing a new inspector draft, native Gemini generation/catalog, OpenRouter free router option, provider-specific session settings, connection test, actionable errors and explicit credential clear. Add persistent opt-in agent research plan, source excerpt freshness check, local declaration suggestions and optional SDK split signer verification. Mock provider and UI tests; real account/device testing and production signing remain pending.
+
 ## 0.9.0+10 — development preview
 
 Dart snapshot hash comparison; Hermes v76 bounded opcode preview; classic IL2CPP 27/29 definition mapping; Ghidra block/edge evidence and DOT; split manifest preflight; bounded live Logcat; draft diff; AI report export and refinement; tool path/version manager; pruned workspace search; manifest/member hardening; Ghidra synthetic smoke workflow and regression tests. Not a production release.
