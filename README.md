@@ -30,6 +30,15 @@ An **Android-first Flutter project** for offline APK inspection and optional AI 
 
 See [Feature status](docs/FEATURE_STATUS.md) for precise limitations.
 
+## Native ARM64 preview
+
+In the ELF explorer, tap an executable section row or the code icon beside
+an eligible sized function symbol. The paged read-only linear sweep shows
+virtual address, raw word, known mnemonic and operands. Direct branch targets
+use instruction-relative addresses. Unsupported words stay `.word`.
+Only little-endian AArch64 executable/shared ELF files and file-backed
+executable PROGBITS ranges are accepted. No native execution or decompilation.
+
 ## On-device source project folders
 
 When an APK is imported, DroidRE detects framework indicators, inspects

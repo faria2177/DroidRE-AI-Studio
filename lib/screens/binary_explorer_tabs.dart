@@ -11,6 +11,7 @@ import '../services/elf_symbol_inspector.dart';
 import '../services/elf_dependency_inspector.dart';
 import '../services/elf_section_inspector.dart';
 import 'elf_section_hex_dialog.dart';
+import 'elf_disassembly_dialog.dart';
 import '../services/native_dependency_graph_inspector.dart';
 
 class DexBrowserTab extends StatefulWidget {
@@ -822,8 +823,8 @@ class _ElfBrowserTabState extends State<ElfBrowserTab> {
       const SizedBox(height: 8),
       const Text('ELF32/ELF64 headers, sections, symbols, dependencies and '
           'same-ABI dependency graph. A declared DT_NEEDED dependency '
-          'does not guarantee runtime availability. Read-only; no native '
-          'disassembly or execution. Graph scans at most 64 libraries.'),
+          'does not guarantee runtime availability. Partial ARM64 disassembly '
+          'is read-only; no execution. Graph scans at most 64 libraries.'),
       if (graphTask != null)
         FutureBuilder<NativeDependencyGraph>(
           future: graphTask,
@@ -919,8 +920,18 @@ class _ElfBrowserTabState extends State<ElfBrowserTab> {
                                     'VA: ${section.addressHex}\n'
                                     'Flags: ${section.flags.isEmpty ? 'none' : section.flags.join(', ')} · '
                                     'Alignment: ${section.alignment} · '
-                                    '${section.fileBacked ? 'file-backed' : 'no file payload'}',
+                                    '${section.fileBacked ? 'file-backed' : 'no file payload'}'
+                                    '${section.flags.contains('EXEC') ? ' · Tap row for ARM64' : ''}',
                                   ),
+                                  onTap: section.fileBacked && section.size >= 4 &&
+                                      section.flags.contains('EXEC')
+                                      ? () => showDialog<void>(context: context,
+                                          builder: (_) => ElfDisassemblyDialog(
+                                            apkPath: widget.report.localPath,
+                                            entryName: selectedFile,
+                                            sectionIndex: section.index,
+                                            label: section.name,
+                                          )) : null,
                                   trailing: IconButton(
                                     icon: const Icon(Icons.code),
                                     tooltip: section.fileBacked && section.size > 0
@@ -1108,9 +1119,23 @@ class _ElfBrowserTabState extends State<ElfBrowserTab> {
                           title: SelectableText(sym.name),
                           subtitle: Text(
                             '${sym.type} · ${sym.binding} · ${sym.visibility} · '
-                            '${sym.dynamic ? '.dynsym' : '.symtab'}',
+                            '${sym.dynamic ? '.dynsym' : '.symtab'} · '
+                            'Value: 0x${sym.value.toRadixString(16)} · ${sym.size} bytes',
                           ),
-                          trailing: Text(label),
+                          trailing: sym.type == 'FUNC' && !sym.imported &&
+                              sym.sectionIndex > 0 && sym.size >= 4
+                              ? IconButton(
+                                  tooltip: 'Disassemble sized ARM64 function',
+                                  icon: const Icon(Icons.code),
+                                  onPressed: () => showDialog<void>(context: context,
+                                    builder: (_) => ElfDisassemblyDialog(
+                                      apkPath: widget.report.localPath,
+                                      entryName: selectedFile,
+                                      sectionIndex: sym.sectionIndex,
+                                      label: sym.name,
+                                      function: sym,
+                                    )),
+                                ) : Text(label),
                         );
                       },
                     ),

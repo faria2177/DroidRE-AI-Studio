@@ -17,6 +17,8 @@ class ElfSymbol {
     required this.dynamic,
     required this.imported,
     required this.exported,
+    this.value = 0,
+    this.size = 0,
   });
 
   final String name;
@@ -27,6 +29,8 @@ class ElfSymbol {
   final bool dynamic;
   final bool imported;
   final bool exported;
+  final int value;
+  final int size;
 }
 
 @immutable
@@ -247,6 +251,8 @@ class ElfSymbolInspector {
             _ => 'OTHER',
           },
           sectionIndex: sectionIndex,
+          value: is64 ? u64(at + 8) : u32(at + 4),
+          size: is64 ? u64(at + 16) : u32(at + 8),
           dynamic: dynamic,
           imported: imported,
           exported: exported,

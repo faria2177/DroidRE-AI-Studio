@@ -19,7 +19,7 @@ Do not mistake a visible tool card for a completed reverse-engineering engine.
 | On-device source folders, DEX semantics and debug info | SAF-based File Manager folder + bounded recovery (unverified) | Framework-aware source preview with up to 3 DEX / 80 classes / 400 methods / 32 resources, class hierarchy/fields, annotation types and bounded encoded values (no runtime evaluation), try/catch handlers and instruction references. New per-class `method_debug_info.json`: DEX debug parameter names, source-line mappings, source-file switches, prologue/epilogue flags and local-variable lifetimes. Debug streams bounded (128 KiB / 5,000 opcodes / 512 positions / 256 local ranges / 255 parameters); missing/malformed debug data is not fabricated; partial status reported. Java-like/Dalvik previews are non-compilable and non-assemblable. See the latest CI run for build/test status. |
 | APK Resources | Advanced configuration filters, reference ID diffs, CSV/JSON export and inherited styles | Up to 250 decoded `resources.arsc` entries, packed language/region + BCP-47 script/variant preview, night/density/orientation/SDK qualifiers, variant filters (changed, night/day, localized, density, raw reference changes), read-only scalar and bounded bag/attribute diffs. Configuration comparison export includes baseline/variants, raw and reference changes, partial/truncated diagnostics in JSON or UTF-8 CSV (formula-escaped for spreadsheet safety), saved through user-selected file dialog. No Android runtime resource selection, remapping of dynamic references, overlay resolution or full theme rendering. |
 | AI code explanations | Opt-in integrated | Method prompts include resolved symbols and instruction-offset evidence requests; review/edit prompt → consent → send to chosen provider; no binary APK upload |
-| Native `.so` | ELF sections, paged hex preview and dependency graph | On-demand ELF32/ELF64 sections (up to 1,024), read-only Hex/ASCII preview in 256-byte pages for file-backed sections, symbols/imports/exports, `DT_NEEDED` and SONAME, RPATH/RUNPATH; same-ABI dependency graph (up to 64 libraries). NOBITS sections have no hex; no runtime linkage verification or disassembly |
+| Native `.so` | ELF sections, paged hex preview and dependency graph | On-demand ELF32/ELF64 sections (up to 1,024), read-only Hex/ASCII preview in 256-byte pages for file-backed sections, symbols/imports/exports, `DT_NEEDED` and SONAME, RPATH/RUNPATH; same-ABI dependency graph (up to 64 libraries). NOBITS sections have no hex; partial ARM64 linear disassembly available; no runtime linkage verification |
 | Framework detection | Heuristic | Shows indicators, not certainty |
 | Project persistence | Implemented | Local copied artifacts and JSON index |
 | Google account button | Requires Google OAuth registration | Configurable Web Client ID in Settings, native account selection/restore; package name + APK signing SHA must be registered, backend auth verification is future work |
@@ -60,6 +60,15 @@ Source ZIP includes a read-only compiled table and XML-reference sidecar.
 Known-name hints never overwrite original XML IDs; dynamic, unavailable or
 ambiguous targets are explicit. The table reader is bounded to 250 values,
 40 MiB of input and 200,000 scanned slots. This is not a rebuildable resource tree.
+
+## Native ARM64 disassembly preview
+
+128 instructions per page, restricted to executable file-backed PROGBITS
+sections of little-endian AArch64 ELF shared objects/executables. Sized FUNC
+symbols can open a range only within their declared section. Branches, returns,
+selected arithmetic/address/load-store instructions decode; other words remain
+explicitly unsupported. No relocation, data-vs-code certainty, inferred function
+bounds, ARM32/x86 decoding, or native decompilation.
 
 ## Known limitations
 

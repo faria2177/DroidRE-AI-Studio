@@ -968,7 +968,7 @@ class _ToolsScreenState extends State<ToolsScreen> {
   Widget build(BuildContext context) {
     const planned = <(IconData, String, String)>[
       (Icons.account_tree_outlined, 'Smali editor', 'Native engine phase'),
-      (Icons.computer, 'ELF disassembler', 'Native engine phase'),
+      (Icons.computer, 'Full multi-architecture ELF disassembler', 'Native engine phase'),
       (Icons.compare_arrows, 'Version diff', 'Planned'),
       (Icons.fact_check_outlined, 'Security audit', 'Planned'),
       (Icons.draw_outlined, 'Rebuild and sign', 'Authorized edit phase'),
