@@ -14,6 +14,7 @@ import 'resource_explorer_tab.dart';
 import 'recovered_folder_browser.dart';
 import 'apk_asset_editor_screen.dart';
 import 'apk_security_screen.dart';
+import 'apktool_workspace_screen.dart';
 
 class StudioShell extends StatefulWidget {
   const StudioShell({super.key, required this.controller});
@@ -1180,7 +1181,6 @@ class _ToolsScreenState extends State<ToolsScreen> {
   @override
   Widget build(BuildContext context) {
     const planned = <(IconData, String, String)>[
-      (Icons.account_tree_outlined, 'Smali editor', 'Native engine phase'),
       (Icons.computer, 'Full multi-architecture ELF disassembler', 'Native engine phase'),
       (Icons.draw_outlined, 'On-device signing / full rebuild', 'Authorized edit phase'),
       (Icons.smart_toy_outlined, 'Local AI', 'Optional model phase'),
@@ -1222,6 +1222,15 @@ class _ToolsScreenState extends State<ToolsScreen> {
           ),
         )),
         const SizedBox(height: 12),
+        Card(child: ListTile(
+          leading: const Icon(Icons.account_tree_outlined),
+          title: const Text('Smali & Resource Workspace'),
+          subtitle: const Text('Windows only · trusted external Java / Apktool required'),
+          onTap: !Platform.isWindows || widget.report == null ||
+              !widget.report!.fileName.toLowerCase().endsWith('.apk') ? null : () =>
+              Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) =>
+                ApktoolWorkspaceScreen(report: widget.report!))),
+        )),
         for (final comparison in [false, true])
           Card(child: ListTile(
             leading: Icon(comparison ? Icons.compare_arrows : Icons.fact_check_outlined),
