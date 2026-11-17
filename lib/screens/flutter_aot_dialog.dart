@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 
 import '../services/flutter_aot_inspector.dart';
 import 'elf_section_hex_dialog.dart';
+import 'flutter_structure_dialog.dart';
 
 class FlutterAotDialog extends StatefulWidget {
   const FlutterAotDialog({
@@ -94,6 +95,9 @@ class _FlutterAotDialogState extends State<FlutterAotDialog> {
                   ]),
           ),
           actions: [
+            TextButton(onPressed: () => showDialog<void>(context: context,
+              builder: (_) => FlutterStructureDialog(apkPath: widget.apkPath,
+                entryName: widget.entryName)), child: const Text('Strings & assets')),
             if (report != null)
               TextButton.icon(
                 onPressed: () {
