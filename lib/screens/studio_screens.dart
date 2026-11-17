@@ -27,6 +27,7 @@ import 'archive_member_export_screen.dart';
 import 'paged_binary_screen.dart';
 import 'ghidra_headless_screen.dart';
 import 'split_set_screen.dart';
+import 'external_tool_manager_screen.dart';
 import 'package:file_picker/file_picker.dart';
 import '../services/framework_recovery_index.dart';
 import 'dart:convert';
@@ -1429,6 +1430,13 @@ class _ToolsScreenState extends State<ToolsScreen> {
           subtitle: const Text('Manifest identity and split consistency'),
           onTap: () => Navigator.of(context).push(MaterialPageRoute<void>(
             builder: (_) => const SplitSetScreen())),
+        )),
+        Card(child: ListTile(
+          leading: const Icon(Icons.build_circle_outlined),
+          title: const Text('Universal Tool Manager'),
+          subtitle: const Text('Windows · detect and validate external tool versions'),
+          onTap: !Platform.isWindows ? null : () => Navigator.of(context).push(
+            MaterialPageRoute<void>(builder: (_) => const ExternalToolManagerScreen())),
         )),
         Text('Source Recovery — paged export',
             style: Theme.of(context).textTheme.titleMedium),
