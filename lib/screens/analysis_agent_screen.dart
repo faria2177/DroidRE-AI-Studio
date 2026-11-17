@@ -1,10 +1,12 @@
 import 'dart:convert';
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../services/ai_chat_service.dart';
 import '../services/analysis_agent.dart';
 import '../services/agent_evidence_verifier.dart';
+import '../services/agent_research_store.dart';
 import '../services/project_workspace_service.dart';
 import '../services/saf_source_recovery_service.dart';
 import '../services/local_export_service.dart';
@@ -167,6 +169,57 @@ class _AnalysisAgentScreenState extends State<AnalysisAgentScreen> {
     }
   }
 
+  Future<String> _workspaceScope() async => widget.uri != null ? 'saf:${widget.uri}' :
+    'local:${await Directory(widget.root!).resolveSymbolicLinks()}';
+
+  Future<void> _savePlan() async {
+    final plan = ResearchPlan(_question.text, AnalysisAgent.validateQueries(_queries.text.split('\n')));
+    final confirmed = await showDialog<bool>(context: context, builder: (context) =>
+      AlertDialog(title: const Text('Save research plan locally?'),
+        content: const Text('Question and search terms will be stored unencrypted on this device, '
+          'replacing the previous plan for this workspace. Review for private information or secrets. '
+          'No API key, report or source excerpts are retained.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
+          FilledButton(onPressed: () => Navigator.pop(context, true), child: const Text('Save plan')),
+        ]));
+    if (confirmed != true || !mounted) {
+      return;
+    }
+    final store = await AgentResearchStore.appLocal();
+    await store.save(await _workspaceScope(), plan);
+    if (mounted) {
+      setState(() => _message = 'Research plan saved locally');
+    }
+  }
+
+  Future<void> _loadPlan() async {
+    final store = await AgentResearchStore.appLocal();
+    final plan = await store.load(await _workspaceScope());
+    if (!mounted) {
+      return;
+    }
+    if (plan == null) {
+      setState(() => _message = 'No saved plan for this workspace');
+      return;
+    }
+    _reset();
+    setState(() {
+      _question.text = plan.question;
+      _queries.text = plan.queries.join('\n');
+      _step = 2;
+      _message = 'Saved plan restored. Review and run searches again.';
+    });
+  }
+
+  Future<void> _clearPlan() async {
+    final store = await AgentResearchStore.appLocal();
+    await store.clear(await _workspaceScope());
+    if (mounted) {
+      setState(() => _message = 'Saved workspace plan cleared');
+    }
+  }
+
   Future<void> _verifyEvidence() async {
     final result = await AgentEvidenceVerifier.check(_reviewed, (path) =>
       widget.uri != null ? SafSourceRecoveryService.readFile(widget.uri!, path) :
@@ -202,10 +255,14 @@ class _AnalysisAgentScreenState extends State<AnalysisAgentScreen> {
         if (_busy) const LinearProgressIndicator(),
         if (_message.isNotEmpty) SelectableText(_message),
         if (_step == 0) ...[
-          TextField(controller: _question, maxLength: 1000,
+          Wrap(spacing: 8, children: [
+            OutlinedButton(onPressed: _busy ? null : () => _task(_loadPlan), child: const Text('Restore saved plan')),
+            TextButton(onPressed: _busy ? null : () => _task(_clearPlan), child: const Text('Clear saved plan')),
+          ]),
+          TextField(controller: _question, enabled: !_busy, maxLength: 1000,
             minLines: 2, maxLines: 4,
             decoration: const InputDecoration(labelText: 'Research question')),
-          FilledButton(onPressed: _preparePlan, child: const Text('Prepare search plan request')),
+          FilledButton(onPressed: _busy ? null : _preparePlan, child: const Text('Prepare search plan request')),
         ],
         if (_step == 1) ...[
           const Text('Review this exact prompt. Sending it contacts the selected provider; '
@@ -221,6 +278,7 @@ class _AnalysisAgentScreenState extends State<AnalysisAgentScreen> {
           TextField(controller: _queries, enabled: !_busy, maxLength: 245,
             minLines: 3, maxLines: 3,
             decoration: const InputDecoration(labelText: 'One to three search terms, one per line')),
+          OutlinedButton(onPressed: _busy ? null : () => _task(_savePlan), child: const Text('Save research plan locally')),
           FilledButton(onPressed: _busy ? null : () => _task(_collect),
             child: const Text('Run approved local searches')),
           if (_busy) OutlinedButton(onPressed: _cancelled ? null : () => setState(() {
@@ -274,7 +332,7 @@ class _AnalysisAgentScreenState extends State<AnalysisAgentScreen> {
         ],
         if (_step > 0)
           TextButton(onPressed: _busy ? null : _reset, child: const Text('Start new research')),
-        const Text('Questions, plan, evidence, keys and report remain session-only in this screen. '
+        const Text('Evidence, keys and reports remain session-only unless exported. Questions and search terms can be explicitly saved locally. '
           'Provider retention is governed by the selected service.'),
       ]),
     );

@@ -4,3 +4,5 @@ Android INTERNET permission is present; HTTPS only. AI Studio requires a valid p
 AI Studio remains mounted while navigating other tabs; new inspector drafts update the prompt without destroying provider state. Keys remain only in app memory until exit or Clear session API keys. New code requires renewed consent; stale responses to replaced drafts are not displayed. Only AI stays mounted to limit memory.
 
 Reviewed research reports can recheck cited excerpts against current local files without another provider request. Exact/visible excerpt matches are freshness checks, not semantic proof. The workspace editor now offers explicit current-file lexical declaration completion; no language server or remote call.
+
+Optional persistent research plan: save one question and up to three search terms per workspace in app-local unencrypted JSON. Explicit confirmation before saving; restore or clear from agent start. No API keys, source snippets or report content are stored; restoring never sends a provider request and requires new evidence review.
