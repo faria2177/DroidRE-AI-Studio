@@ -16,3 +16,5 @@ are not sandboxed; timeout kills JVM, not necessarily descendants. Use trusted t
 and authorized samples, preferably in isolated VM. Unit tests exercise Dart parser
 and args. Actual Ghidra/JDK runtime and Java script compile validation pending.
 Reference: https://ghidra.re/ghidra_docs/GhidraClass/Intermediate/HeadlessAnalyzer.html
+
+Phase 34: BasicBlockModel exports up to 32 block starts per decompiled function and examines up to 8 destination references per block, skipping calls and external targets. View observed block edges and copy Graphviz DOT of sampled internal edges. Not a complete CFG or graphical in-app renderer. Ghidra Java compile/run testing pending.

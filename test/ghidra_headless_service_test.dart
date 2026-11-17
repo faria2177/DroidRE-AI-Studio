@@ -5,6 +5,20 @@ import 'package:flutter_test/flutter_test.dart';
 String field(String s) => base64Encode(utf8.encode(s));
 
 void main() {
+  test('CFG records retain internal edges and reject orphan source', () {
+    final text = [
+      'DROIDRE1\t${field("x")}',
+      'F\t${field("1000")}\t${field("start")}',
+      'P\t${field("1000")}\tobserved\t${field("code")}',
+      'B\t${field("1000")}\t${field("1000")}',
+      'E\t${field("1000")}\t${field("1000")}\t${field("1004")}\t${field("jump")}',
+      'B\t${field("1000")}\t${field("1004")}',
+      'END\t1\t1\tsampled',
+    ].join('\n');
+    final function = GhidraHeadlessService.parse(text).functions.single;
+    expect(function.blocks.length, 2);
+    expect(GhidraHeadlessService.cfgDot(function), contains('"1000" -> "1004"'));
+  });
   test('reads function/call records and pseudocode', () {
     final text = [
       'DROIDRE1\t${field("AARCH64:LE:64:v8A")}',

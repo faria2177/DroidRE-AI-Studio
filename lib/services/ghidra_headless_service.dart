@@ -11,10 +11,17 @@ class GhidraCall {
   final String address, name;
 }
 
+class GhidraBlockEdge {
+  const GhidraBlockEdge(this.from, this.to, this.flow);
+  final String from, to, flow;
+}
+
 class GhidraFunction {
   GhidraFunction(this.address, this.name);
   final String address, name;
   final calls = <GhidraCall>[];
+  final blocks = <String>[];
+  final edges = <GhidraBlockEdge>[];
   String? pseudocode, status;
 }
 
@@ -67,7 +74,7 @@ class GhidraHeadlessService {
       return result;
     }
     final lines = const LineSplitter().convert(text);
-    if (lines.length < 2 || lines.length > 6500) {
+    if (lines.length < 2 || lines.length > 10000) {
       throw const FormatException('Incomplete or oversized Ghidra export');
     }
     final header = lines.first.split('\t');
@@ -90,12 +97,27 @@ class GhidraHeadlessService {
         functions[address] = GhidraFunction(address, decode(fields[2], 256));
       } else {
         final function = functions[address];
-        if (function == null || fields.length != 4) {
+        if (function == null) {
           throw const FormatException('Orphan Ghidra evidence record');
         }
-        if (fields[0] == 'C' && function.calls.length < 24) {
+        if (fields[0] == 'B' && fields.length == 3 &&
+            function.pseudocode != null && function.blocks.length < 32) {
+          final start = decode(fields[2], 128);
+          if (function.blocks.contains(start)) {
+            throw const FormatException('Duplicate CFG block');
+          }
+          function.blocks.add(start);
+        } else if (fields[0] == 'E' && fields.length == 5 &&
+            function.edges.length < 256) {
+          final from = decode(fields[2], 128);
+          if (!function.blocks.contains(from) ||
+              function.edges.where((e) => e.from == from).length >= 8) {
+            throw const FormatException('Invalid CFG source');
+          }
+          function.edges.add(GhidraBlockEdge(from, decode(fields[3], 128), decode(fields[4], 80)));
+        } else if (fields[0] == 'C' && fields.length == 4 && function.calls.length < 24) {
           function.calls.add(GhidraCall(decode(fields[2], 128), decode(fields[3], 256)));
-        } else if (fields[0] == 'P' && previews < 12 &&
+        } else if (fields[0] == 'P' && fields.length == 4 && previews < 12 &&
             function.pseudocode == null &&
             const {'observed', 'clipped', 'unresolved'}.contains(fields[2])) {
           function.status = fields[2];
@@ -114,6 +136,21 @@ class GhidraHeadlessService {
       throw const FormatException('Ghidra export missing completion marker');
     }
     return GhidraEvidence(language, functions.values.toList(), end[3] == 'limited');
+  }
+
+  static String cfgDot(GhidraFunction function) {
+    final out = StringBuffer('digraph cfg {\n');
+    String quote(String value) => jsonEncode(value);
+    for (final block in function.blocks) {
+      out.writeln('  ${quote(block)};');
+    }
+    for (final edge in function.edges) {
+      if (function.blocks.contains(edge.to)) {
+        out.writeln('  ${quote(edge.from)} -> ${quote(edge.to)} [label=${quote(edge.flow)}];');
+      }
+    }
+    out.writeln('}');
+    return out.toString();
   }
 
   static Future<GhidraRun> run({

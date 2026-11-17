@@ -157,6 +157,18 @@ class _GhidraHeadlessScreenState extends State<GhidraHeadlessScreen> {
             ExpansionTile(title: Text('Outgoing observed calls (${current.calls.length})'),
               children: current.calls.map((call) => ListTile(title: Text(call.name),
                 subtitle: Text(call.address), onTap: () => _navigate(call.address))).toList()),
+            if (current.blocks.isNotEmpty)
+              ExpansionTile(title: Text('Sampled basic-block CFG (${current.blocks.length})'),
+                children: [
+                  const Text('Only observed intra-function edges; omitted targets may exist.'),
+                  OutlinedButton(onPressed: () => Clipboard.setData(
+                    ClipboardData(text: GhidraHeadlessService.cfgDot(current))),
+                    child: const Text('Copy Graphviz DOT')),
+                  for (final block in current.blocks)
+                    ListTile(title: Text(block),
+                      subtitle: Text(current.edges.where((e) => e.from == block)
+                        .map((e) => '${e.flow} → ${e.to}').join('\n'))),
+                ]),
             const Text('C-like decompiler output — not original C/C++ source.'),
             if (current.pseudocode == null)
               OutlinedButton(onPressed: () => setState(() {

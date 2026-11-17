@@ -9,6 +9,7 @@ import ghidra.app.util.headless.HeadlessScript;
 import ghidra.app.decompiler.DecompInterface;
 import ghidra.app.decompiler.DecompileResults;
 import ghidra.program.model.listing.Function;
+import ghidra.program.model.block.BasicBlockModel;
 
 public class DroidREHeadlessExport extends HeadlessScript {
     private String field(String text, int limit) {
@@ -19,6 +20,37 @@ public class DroidREHeadlessExport extends HeadlessScript {
     private void row(BufferedWriter out, String... values) throws Exception {
         out.write(String.join("\t", values));
         out.newLine();
+    }
+    private boolean exportBlocks(BufferedWriter out, Function f) throws Exception {
+        var model = new BasicBlockModel(currentProgram);
+        var blocks = model.getCodeBlocksContaining(f.getBody(), monitor);
+        int count = 0;
+        boolean limited = false;
+        String function = field(f.getEntryPoint().toString(), 128);
+        while (blocks.hasNext() && count < 32) {
+            monitor.checkCancelled();
+            var block = blocks.next();
+            var start = block.getFirstStartAddress();
+            if (start == null || !f.getBody().contains(start)) continue;
+            count++;
+            String address = field(start.toString(), 128);
+            row(out, "B", function, address);
+            var edges = block.getDestinations(monitor);
+            int examined = 0;
+            while (edges.hasNext() && examined++ < 8) {
+                var edge = edges.next();
+                var target = edge.getDestinationAddress();
+                if (target == null || edge.getFlowType().isCall() ||
+                    !f.getBody().contains(target)) continue;
+                var destination = model.getFirstCodeBlockContaining(target, monitor);
+                if (destination == null || destination.getFirstStartAddress() == null) continue;
+                row(out, "E", function, address,
+                    field(destination.getFirstStartAddress().toString(), 128),
+                    field(edge.getFlowType().toString(), 80));
+            }
+            limited |= edges.hasNext();
+        }
+        return limited || blocks.hasNext();
     }
     @Override
     public void run() throws Exception {
@@ -61,6 +93,7 @@ public class DroidREHeadlessExport extends HeadlessScript {
                         } else { code = result.getErrorMessage(); }
                     }
                     row(out, "P", field(address, 128), status, field(code, 12000));
+                    limited |= exportBlocks(out, f);
                 }
             }
             row(out, "END", Integer.toString(functions), Integer.toString(previews),
