@@ -26,8 +26,7 @@ void main() {
     try {
       await File('${root.path}/a.java').writeAsString('hello needle');
       await File('${root.path}/b.dex').writeAsString('needle');
-      await File('${root.path}/c.txt').writeAsString('needle' +
-          List.filled(ProjectContextSearch.maxFileBytes, 'x').join());
+      await File('${root.path}/c.txt').writeAsString('needle${List.filled(ProjectContextSearch.maxFileBytes, 'x').join()}');
       final report = await ProjectContextSearch.local(root.path, 'needle');
       expect(report.matches.single.path, 'a.java');
       expect(report.filesRead, 1);
