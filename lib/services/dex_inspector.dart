@@ -200,10 +200,12 @@ class DexInspector {
     if (method.codeOffset == 0) {
       return '// No method body: abstract, native, or external';
     }
-    final decoded = DalvikDisassembler.decode(_methodUnits(bytes, method),
+    final units = _methodUnits(bytes, method);
+    final decoded = DalvikDisassembler.decode(units,
         resolveReference: DexSymbolIndex(bytes).resolve);
     return DalvikPseudocode.render(decoded,
-        methodName: method.name, prototype: method.prototype);
+        methodName: method.name, prototype: method.prototype,
+        graph: DalvikControlFlowGraph.build(units, decoded));
   }
 
   static Future<DexCallerResult> findCallersEntry(

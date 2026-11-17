@@ -17,7 +17,7 @@ An **Android-first Flutter project** for offline APK inspection and optional AI 
 - Resolve DEX method, field, string, type and prototype references to human-readable descriptors when available. Tap outgoing method references to navigate to indexed declarations, or **Find callers** to scan other indexed methods in the same DEX (bounded, best effort).
 - **Call graph** scans up to 24 DEX entries by method signature, finding direct callers/callees and two-hop relationships across `classes.dex`/`classes2.dex` etc., with limits and incomplete-scan warnings.
 - **Normal-flow control graph:** basic blocks, jump/conditional/switch successors, backward edges and normal-flow reachability in the Dalvik method view and source preview; exception flow is excluded.
-- **View Java-like pseudocode** provides a read-only, explicitly approximate statement view with Dalvik offsets; it does not recover original Java source.
+- **View Java-like pseudocode** renders conditional operators, register arithmetic, field receivers, arrays and locally linked invoke results with Dalvik offsets; it does not recover original Java source.
 - Decode compiled Android XML resource element/attribute hierarchy (up to 2 MiB per XML); resource references are shown as IDs until full `resources.arsc` value resolution is available.
 - Tap **Explain with AI** on a selected DEX method or decoded XML to prefill the AI Studio prompt. Text is only sent after explicit consent and Send; no APK upload.
 - AI method prompts include resolved references and request evidence by instruction offset, behavior, risks, uncertainties and next targets; the user can review and edit everything before sending.

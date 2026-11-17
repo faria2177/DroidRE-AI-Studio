@@ -45,6 +45,15 @@ caps switch edges at 4,096, displays up to 128 blocks and 20 edges per
 block, and marks incomplete or invalid targets. Exception edges, type
 verification and semantic loop detection are not included.
 
+## Java-like statement reconstruction
+
+The viewer preserves instruction offsets and register names, renders comparison
+operators, two-address and literal arithmetic, array access, instance-field
+receivers and allocation without inventing constructors. Invoke/filled-array
+results are linked only to adjacent move-result instructions within a complete
+normal-flow graph and outside branch entries. Unresolved results stay explicit.
+This is not SSA, type inference, structured loops or compilable Java.
+
 ## Known limitations
 
 - The source recovery ZIP produces non-compilable/non-assemblable text previews only. See `docs/SOURCE_RECOVERY.md` for bounds, privacy, and omitted source types.

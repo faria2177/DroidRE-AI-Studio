@@ -44,7 +44,7 @@ class DalvikControlFlowGraph {
   static const maxDisplayedEdges = 20;
 
   static String _label(int value) =>
-      '0x' + value.toRadixString(16).padLeft(4, '0');
+      '0x${value.toRadixString(16).padLeft(4, '0')}';
 
   /// Builds normal-flow basic blocks from authoritative instruction offsets.
   /// Payloads are data, never executable blocks. Exception edges, dynamic
@@ -96,8 +96,8 @@ class DalvikControlFlowGraph {
 
       void add(int target, DalvikEdgeKind kind, {int? key}) {
         if (!executable.contains(target)) {
-          warn(_label(pc) + ' invalid or undecoded ' + kind.name +
-              ' target: ' + _label(target));
+          warn('${_label(pc)} invalid or undecoded ${kind.name} '
+              'target: ${_label(target)}');
           return;
         }
         edges.add(DalvikControlEdge(target, kind, caseKey: key));
@@ -127,7 +127,7 @@ class DalvikControlFlowGraph {
             ? 'packed-switch-payload' : 'sparse-switch-payload';
         final payload = all[payloadPc];
         if (payload == null || payload.mnemonic != expected || payloadPc.isOdd) {
-          warn(_label(pc) + ' invalid switch payload');
+          warn('${_label(pc)} invalid switch payload');
         } else {
           final count = words[payloadPc + 1];
           for (var j = 0; j < count; j++) {
@@ -179,7 +179,7 @@ class DalvikControlFlowGraph {
       final block = byStart[start]!;
       for (final edge in block.$4) {
         if (!byStart.containsKey(edge.target)) {
-          warn('Successor is not a basic-block entry: ' + _label(edge.target));
+          warn('Successor is not a basic-block entry: ${_label(edge.target)}');
         } else if (!visited.contains(edge.target)) {
           queue.add(edge.target);
         }
@@ -203,23 +203,21 @@ class DalvikControlFlowGraph {
 
   List<String> describe() {
     final lines = <String>[
-      'Normal-flow basic blocks: ' + blocks.length.toString() +
-          (partial ? ' (partial)' : ''),
+      'Normal-flow basic blocks: ${blocks.length}${partial ? ' (partial)' : ''}',
       'Exception edges excluded; reachability is normal-flow only.',
     ];
     for (final block in blocks.take(maxDisplayedBlocks)) {
       final edges = <String>[
         for (final edge in block.successors.take(maxDisplayedEdges))
-          edge.kind.name +
-              (edge.caseKey == null ? '' : '(' + edge.caseKey.toString() + ')') +
-              ' -> ' + _label(edge.target) +
-              (edge.target <= block.start ? ' [backward]' : ''),
+          '${edge.kind.name}${edge.caseKey == null ? '' : '(${edge.caseKey})'} '
+              '-> ${_label(edge.target)}'
+              '${edge.target <= block.start ? ' [backward]' : ''}',
       ];
-      lines.add(_label(block.start) + '..' + _label(block.endExclusive) +
-          ' (exclusive): ' + edges.join(', ') +
-          (block.reachable == false ? ' [not reached by normal flow]' :
-              block.reachable == null ? ' [reachability unknown]' : '') +
-          (block.successors.length > maxDisplayedEdges ? ' [more edges]' : ''));
+      lines.add('${_label(block.start)}..${_label(block.endExclusive)} '
+          '(exclusive): ${edges.join(', ')}'
+          '${block.reachable == false ? ' [not reached by normal flow]' :
+              block.reachable == null ? ' [reachability unknown]' : ''}'
+          '${block.successors.length > maxDisplayedEdges ? ' [more edges]' : ''}');
     }
     if (blocks.length > maxDisplayedBlocks) {
       lines.add('Block display limited to $maxDisplayedBlocks entries.');
