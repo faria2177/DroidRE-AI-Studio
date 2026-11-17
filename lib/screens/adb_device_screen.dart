@@ -15,7 +15,7 @@ class _AdbDeviceScreenState extends State<AdbDeviceScreen> {
   String? _path, _serial, _package;
   List<AdbDevice> _devices = [];
   List<String> _packages = [];
-  bool _trusted = false, _busy = false;
+  bool _trusted = false, _busy = false, _monitor = false;
   String _output = '', _filter = '';
   AdbDeviceInspector get _adb => AdbDeviceInspector(_path!);
 
@@ -89,6 +89,35 @@ class _AdbDeviceScreenState extends State<AdbDeviceScreen> {
   }
 
   @override
+  void dispose() {
+    _monitor = false;
+    super.dispose();
+  }
+
+  Future<void> _monitorLogs() async {
+    final serial = _serial!;
+    final package = _package!;
+    final adb = _adb;
+    setState(() => _monitor = true);
+    try {
+      for (var i = 0; i < 10 && _monitor && mounted; i++) {
+        final snapshot = await adb.logs(serial, package);
+        if (!mounted || !_monitor) {
+          break;
+        }
+        setState(() => _output = 'Snapshot ${i + 1}/10 · ${DateTime.now().toIso8601String()}\n$snapshot');
+        if (i < 9) {
+          await Future<void>.delayed(const Duration(seconds: 3));
+        }
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _monitor = false);
+      }
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
     final ready = _trusted && _path != null && !_busy;
     final deviceReady = ready && _serial != null;
@@ -150,6 +179,12 @@ class _AdbDeviceScreenState extends State<AdbDeviceScreen> {
           OutlinedButton(onPressed: packageReady ? () => _task(() =>
               _show(() => _adb.logs(_serial!, _package!))) : null,
             child: const Text('Capture selected app Logcat snapshot')),
+          OutlinedButton(onPressed: packageReady ? () => _task(() =>
+              _show(() => _adb.memoryInfo(_serial!, _package!))) : null,
+            child: const Text('Read selected app memory report')),
+          OutlinedButton(onPressed: _monitor ? () => setState(() => _monitor = false) :
+              packageReady ? () => _task(_monitorLogs) : null,
+            child: Text(_monitor ? 'Stop refreshing after current request' : 'Auto-refresh 10 log snapshots')),
           const Text('Logs can contain sensitive information; review before copying. '
               'Only the running main PID is requested, not all processes.'),
         ],

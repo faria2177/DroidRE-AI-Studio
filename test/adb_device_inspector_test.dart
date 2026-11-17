@@ -2,6 +2,11 @@ import 'package:droidre_ai_studio/services/adb_device_inspector.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  test('memory report uses an explicit validated package', () {
+    expect(AdbDeviceInspector.memoryArgs('ABC', 'com.demo'),
+      ['-s', 'ABC', 'shell', 'dumpsys', 'meminfo', 'com.demo']);
+    expect(() => AdbDeviceInspector.memoryArgs('ABC', 'bad;command'), throwsFormatException);
+  });
   test('parses only recognized states and deduplicates devices', () {
     final devices = AdbDeviceInspector.parseDevices(
       'List of devices attached\nABC123\tdevice model:Demo\n'

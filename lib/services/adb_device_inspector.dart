@@ -136,6 +136,18 @@ class AdbDeviceInspector {
     return _run(packagePathArgs(serial, package));
   }
 
+  static List<String> memoryArgs(String serial, String package) {
+    if (!validSerial(serial) || !validPackage(package)) {
+      throw const FormatException('Invalid device or package');
+    }
+    return ['-s', serial, 'shell', 'dumpsys', 'meminfo', package];
+  }
+
+  Future<String> memoryInfo(String serial, String package) async {
+    await _requireDevice(serial);
+    return _run(memoryArgs(serial, package));
+  }
+
   Future<String> logs(String serial, String package) async {
     if (!validPackage(package)) {
       throw const FormatException('Invalid package');

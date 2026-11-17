@@ -22,6 +22,7 @@ import 'framework_binary_screen.dart';
 import 'universal_binary_screen.dart';
 import 'project_workspace_screen.dart';
 import 'archive_member_export_screen.dart';
+import 'paged_binary_screen.dart';
 import 'package:file_picker/file_picker.dart';
 import '../services/framework_recovery_index.dart';
 import 'dart:convert';
@@ -1353,6 +1354,14 @@ class _ToolsScreenState extends State<ToolsScreen> {
           subtitle: const Text('Extract individual APK, Hermes, Unity or NativeScript members'),
           onTap: widget.report == null ? null : () => Navigator.of(context).push(
             MaterialPageRoute<void>(builder: (_) => ArchiveMemberExportScreen(report: widget.report!))),
+        )),
+        const SizedBox(height: 12),
+        Card(child: ListTile(
+          leading: const Icon(Icons.storage),
+          title: const Text('Large Binary Viewer'),
+          subtitle: const Text('Streaming hex pages, hash and search up to 1 GiB'),
+          onTap: () => Navigator.of(context).push(MaterialPageRoute<void>(
+            builder: (_) => const PagedBinaryScreen())),
         )),
         const SizedBox(height: 12),
         Text('Source Recovery — paged export',
