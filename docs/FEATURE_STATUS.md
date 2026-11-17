@@ -70,6 +70,15 @@ selected arithmetic/address/load-store instructions decode; other words remain
 explicitly unsupported. No relocation, data-vs-code certainty, inferred function
 bounds, ARM32/x86 decoding, or native decompilation.
 
+## Flutter AOT snapshot evidence
+
+ELF Explorer now maps legacy VM/isolate snapshot symbols and consolidated
+Dart snapshot data/text/build-ID symbols. Exact-name filtering scans up to
+100,000 symbol records, rather than relying on the first 500 named symbols.
+Bounded raw header samples and data signature evidence are mapped to file
+and virtual addresses. No snapshot object deserialization, inferred symbol
+locations, version matching, or original Dart source recovery.
+
 ## Known limitations
 
 - The source recovery ZIP produces non-compilable/non-assemblable text previews only. See `docs/SOURCE_RECOVERY.md` for bounds, privacy, and omitted source types.

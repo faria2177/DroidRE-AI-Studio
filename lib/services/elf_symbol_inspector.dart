@@ -75,6 +75,7 @@ class ElfSymbolInspector {
     Uint8List bytes, {
     int resultLimit = maxResults,
     int scanLimit = maxScannedSymbols,
+    Set<String>? exactNames,
   }) {
     if (bytes.length < 52 || bytes.length > ElfInspector.maxBytes ||
         resultLimit < 1 || resultLimit > maxResults ||
@@ -211,7 +212,9 @@ class ElfSymbolInspector {
           hasNameErrors = true;
           continue;
         }
-        if (name.isEmpty) continue;
+        if (name.isEmpty || (exactNames != null && !exactNames.contains(name))) {
+          continue;
+        }
         final binding = info >> 4;
         final type = info & 0xf;
         final visibility = other & 3;

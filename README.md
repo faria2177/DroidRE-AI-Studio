@@ -30,6 +30,14 @@ An **Android-first Flutter project** for offline APK inspection and optional AI 
 
 See [Feature status](docs/FEATURE_STATUS.md) for precise limitations.
 
+## Flutter AOT snapshot evidence
+
+Open ELF Explorer, select libapp.so, then Analyze Flutter AOT snapshots.
+Supports legacy VM/isolate and consolidated Dart snapshot symbol names,
+validates section/address mapping, and displays raw 64-byte header samples.
+Copy a JSON report locally. This is not Dart object-pool decoding, version
+identification, or Dart source decompilation. Stripped symbols remain unknown.
+
 ## Native ARM64 preview
 
 In the ELF explorer, tap an executable section row or the code icon beside

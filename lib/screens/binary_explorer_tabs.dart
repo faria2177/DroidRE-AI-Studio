@@ -12,6 +12,7 @@ import '../services/elf_dependency_inspector.dart';
 import '../services/elf_section_inspector.dart';
 import 'elf_section_hex_dialog.dart';
 import 'elf_disassembly_dialog.dart';
+import 'flutter_aot_dialog.dart';
 import '../services/native_dependency_graph_inspector.dart';
 
 class DexBrowserTab extends StatefulWidget {
@@ -819,6 +820,15 @@ class _ElfBrowserTabState extends State<ElfBrowserTab> {
         icon: const Icon(Icons.hub_outlined),
         label: Text(graphTask == null
             ? 'Build ABI dependency graph' : 'Graph loaded / loading'),
+      ),
+      const SizedBox(height: 8),
+      OutlinedButton.icon(
+        onPressed: () => showDialog<void>(context: context,
+          builder: (_) => FlutterAotDialog(
+            apkPath: widget.report.localPath, entryName: selectedFile,
+          )),
+        icon: const Icon(Icons.integration_instructions_outlined),
+        label: const Text('Analyze Flutter AOT snapshots'),
       ),
       const SizedBox(height: 8),
       const Text('ELF32/ELF64 headers, sections, symbols, dependencies and '
