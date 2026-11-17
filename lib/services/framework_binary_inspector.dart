@@ -5,6 +5,7 @@ import 'dart:typed_data';
 import 'package:crypto/crypto.dart';
 
 import 'package_binary_reader.dart';
+import 'framework_version_mapping.dart';
 
 /// Narrow format inspection; no JavaScript, native or managed code runs.
 class FrameworkBinaryInspector {
@@ -66,6 +67,12 @@ class FrameworkBinaryInspector {
         ranges.add({'name': name, 'offset': offset, 'bytes': length});
       }
       result['ranges'] = ranges;
+      try {
+        result['literalTable'] = FrameworkVersionMapping.literals(bytes,
+          u32(8), u32(12), u32(16), u32(20));
+      } on FormatException catch (e) {
+        result['literalTableWarning'] = e.message;
+      }
       result['strings'] = _strings(bytes, u32(24), u32(28), terminated: true);
       result['note'] = 'Classic metadata string names only; no type/method mapping, C# or native registration recovery.';
       return result;
@@ -86,6 +93,7 @@ class FrameworkBinaryInspector {
       return {...result, 'kind': 'hermes-bytecode', 'version': u32(8),
         'declaredBytes': declared, 'sourceHashHeader': _hex(bytes.sublist(12, 32)),
         'globalCodeIndex': globalIndex, 'functionCountHeader': count,
+        'legacyHbctoolCompatibleVersion': FrameworkVersionMapping.hermesLegacyVersions.contains(u32(8)),
         'stringCountHeader': u32(52), 'stringStorageBytesHeader': u32(60),
         'strings': _strings(bytes, 64, declared - 64),
         'partial': true,

@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../services/flutter_aot_inspector.dart';
+import '../services/framework_version_mapping.dart';
 import 'elf_section_hex_dialog.dart';
 import 'flutter_structure_dialog.dart';
 
@@ -28,6 +29,39 @@ class _FlutterAotDialogState extends State<FlutterAotDialog> {
   void initState() {
     super.initState();
     _report = FlutterAotInspector.inspectEntry(widget.apkPath, widget.entryName);
+  }
+
+  Future<void> _compare(FlutterAotReport report) async {
+    final observed = <String>{};
+    for (final region in report.regions) {
+      final evidence = region.toJson()['versionEvidence'];
+      if (evidence is Map && evidence['hash'] is String) {
+        observed.add(evidence['hash'] as String);
+      }
+    }
+    var reference = '';
+    await showDialog<void>(context: context, builder: (context) =>
+      StatefulBuilder(builder: (context, refresh) {
+        String result = 'Enter trusted SDK snapshot hash';
+        if (reference.trim().isNotEmpty) {
+          try {
+            final matches = observed.where((h) =>
+              FrameworkVersionMapping.compareSnapshotHash(h, reference) == 'match');
+            result = matches.isNotEmpty ? 'Candidate hash matches reference' : 'No candidate match';
+          } on FormatException catch (e) {
+            result = e.message.toString();
+          }
+        }
+        return AlertDialog(title: const Text('Snapshot hash comparison'),
+          content: Column(mainAxisSize: MainAxisSize.min, children: [
+            SelectableText(observed.isEmpty ? 'No sized header candidate' : observed.join('\n')),
+            TextField(maxLength: 32, onChanged: (v) => refresh(() => reference = v),
+              decoration: const InputDecoration(labelText: 'Trusted SDK hash')),
+            Text(result),
+            const Text('Hash match does not establish compatible VM features or object layout.'),
+          ]),
+          actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text('Close'))]);
+      }));
   }
 
   @override
@@ -98,6 +132,8 @@ class _FlutterAotDialogState extends State<FlutterAotDialog> {
             TextButton(onPressed: () => showDialog<void>(context: context,
               builder: (_) => FlutterStructureDialog(apkPath: widget.apkPath,
                 entryName: widget.entryName)), child: const Text('Strings & assets')),
+            if (report != null)
+              TextButton(onPressed: () => _compare(report), child: const Text('Compare SDK hash')),
             if (report != null)
               TextButton.icon(
                 onPressed: () {

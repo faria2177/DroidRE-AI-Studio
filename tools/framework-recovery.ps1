@@ -15,6 +15,17 @@ if (-not (Test-Path -LiteralPath $parentPath -PathType Container)) { throw 'Pare
 if ((Get-Item -LiteralPath $inputPath).Length -gt 80MB) { throw 'Input exceeds 80 MiB.' }
 if ($Mode -eq 'Hermes') {
     if ([IO.Path]::GetFileName($exe) -ine 'hbctool.exe') { throw 'Select trusted hbctool.exe.' }
+    $stream = [IO.File]::OpenRead($inputPath)
+    try {
+        $reader = [IO.BinaryReader]::new($stream)
+        if ($stream.Length -lt 64 -or $reader.ReadUInt64() -ne [UInt64]0x1f1903c103bc1fc6) {
+            throw 'Not a supported Hermes header.'
+        }
+        $version = $reader.ReadUInt32()
+        if ($version -notin @(59,62,74,76)) {
+            throw "Original hbctool does not declare support for HBC $version. Use a verified matching disassembler separately."
+        }
+    } finally { $stream.Dispose() }
 } else {
     if ([IO.Path]::GetFileName($exe) -ine 'Il2CppDumper.exe') { throw 'Select trusted Il2CppDumper.exe.' }
     if (-not $Metadata) { throw 'Provide matching global-metadata.dat.' }
