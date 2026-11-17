@@ -8,6 +8,7 @@ import 'package:path/path.dart' as p;
 import '../services/local_export_service.dart';
 import '../services/project_workspace_service.dart';
 import '../services/project_symbol_index.dart';
+import '../services/workspace_navigation_store.dart';
 import '../services/project_context_search.dart';
 import '../services/saf_source_recovery_service.dart';
 
@@ -83,6 +84,8 @@ class _ProjectWorkspaceScreenState extends State<ProjectWorkspaceScreen> {
   final _tabs = <_WorkspaceTab>[];
   final _bookmarks = <(String, int)>[];
   final _history = <(String, int)>[];
+  WorkspaceNavigationStore? _navigationStore;
+  String? _navigationIdentity;
   int _active = -1;
   bool _busy = false, _partial = false, _exitConfirmed = false, _askingExit = false;
   String _message = '', _filter = '';
@@ -147,6 +150,76 @@ class _ProjectWorkspaceScreenState extends State<ProjectWorkspaceScreen> {
     )) == true;
   }
 
+  Future<void> _loadNavigation() async {
+    final identity = _uri != null ? 'saf:$_uri' :
+        'local:${await Directory(_root!).resolveSymbolicLinks()}';
+    if (!mounted || identity == _navigationIdentity) {
+      return;
+    }
+    final store = await WorkspaceNavigationStore.appLocal();
+    try {
+      final state = await store.load(identity);
+      if (mounted) {
+        setState(() {
+          _navigationStore = store;
+          _navigationIdentity = identity;
+          _bookmarks..clear()..addAll(state.bookmarks);
+          _history..clear()..addAll(state.history);
+        });
+      }
+    } catch (_) {
+      if (mounted) {
+        setState(() {
+          _navigationStore = store;
+          _navigationIdentity = identity;
+          _bookmarks.clear();
+          _history.clear();
+          _message = 'Stored navigation could not be read; starting with an empty list';
+        });
+      }
+    }
+  }
+
+  Future<void> _saveNavigation() async {
+    final store = _navigationStore;
+    final identity = _navigationIdentity;
+    if (store == null || identity == null) {
+      return;
+    }
+    try {
+      await store.save(identity, WorkspaceNavigation(List.of(_bookmarks), List.of(_history)));
+    } catch (_) {
+      if (mounted) {
+        setState(() => _message = 'Navigation retained in memory; local save failed');
+      }
+    }
+  }
+
+  Future<void> _clearNavigation() async {
+    final consent = await showDialog<bool>(context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('Clear saved workspace navigation?'),
+          content: const Text('Removes bookmark and visit history for this workspace only. Source files are unchanged.'),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
+            TextButton(onPressed: () => Navigator.pop(context, true), child: const Text('Clear')),
+          ],
+        ));
+    if (consent != true || !mounted) {
+      return;
+    }
+    if (_navigationIdentity != null) {
+      await _navigationStore?.clear(_navigationIdentity!);
+    }
+    if (mounted) {
+      setState(() {
+        _bookmarks.clear();
+        _history.clear();
+        _message = 'Navigation cleared';
+      });
+    }
+  }
+
   Future<void> _choose() async {
     if (!await _confirmDiscard() || !mounted) {
       return;
@@ -166,6 +239,8 @@ class _ProjectWorkspaceScreenState extends State<ProjectWorkspaceScreen> {
         _tabs.clear();
         _bookmarks.clear();
         _history.clear();
+        _navigationIdentity = null;
+        _navigationStore = null;
         _active = -1;
         _root = canonical;
         _uri = null;
@@ -173,6 +248,7 @@ class _ProjectWorkspaceScreenState extends State<ProjectWorkspaceScreen> {
         _partial = listing.partial;
         _filter = '';
       });
+      await _loadNavigation();
     }
   }
 
@@ -191,6 +267,7 @@ class _ProjectWorkspaceScreenState extends State<ProjectWorkspaceScreen> {
         _paths = listing.paths;
         _partial = listing.partial;
       });
+      await _loadNavigation();
     }
   }
 
@@ -235,6 +312,7 @@ class _ProjectWorkspaceScreenState extends State<ProjectWorkspaceScreen> {
       }
       controller.selection = TextSelection.collapsed(offset: at);
     }
+    await _saveNavigation();
   }
 
   Future<void> _closeTab(int index) async {
@@ -366,7 +444,7 @@ class _ProjectWorkspaceScreenState extends State<ProjectWorkspaceScreen> {
     }
   }
 
-  void _bookmark() {
+  Future<void> _bookmark() async {
     final tab = _current!;
     final at = tab.controller.selection.baseOffset.clamp(0, tab.controller.text.length).toInt();
     final line = '\n'.allMatches(tab.controller.text.substring(0, at)).length + 1;
@@ -382,13 +460,14 @@ class _ProjectWorkspaceScreenState extends State<ProjectWorkspaceScreen> {
         _message = 'Bookmark limit reached';
       }
     });
+    await _saveNavigation();
   }
 
   Future<void> _locations(bool bookmarks) async {
     final locations = bookmarks ? _bookmarks : _history;
     final selected = await showDialog<(String, int)>(context: context,
       builder: (context) => AlertDialog(
-        title: Text(bookmarks ? 'Session bookmarks' : 'Navigation history'),
+        title: Text(bookmarks ? 'Saved bookmarks' : 'Navigation history'),
         content: SizedBox(width: 600, height: 320, child: ListView.builder(
           itemCount: locations.length,
           itemBuilder: (context, i) => ListTile(
@@ -469,7 +548,7 @@ class _ProjectWorkspaceScreenState extends State<ProjectWorkspaceScreen> {
             onSubmitted: (_) => _findNext())),
           IconButton(onPressed: _busy ? null : _findNext, tooltip: 'Find next',
             icon: const Icon(Icons.search)),
-          IconButton(onPressed: _busy ? null : _bookmark, tooltip: 'Toggle line bookmark',
+          IconButton(onPressed: _busy ? null : () => _task(_bookmark), tooltip: 'Toggle line bookmark',
             icon: const Icon(Icons.bookmark_add_outlined)),
           if (_editable)
             IconButton(onPressed: _busy ? null : () => _task(_export),
@@ -515,12 +594,15 @@ class _ProjectWorkspaceScreenState extends State<ProjectWorkspaceScreen> {
             PopupMenuButton<String>(enabled: !_busy, onSelected: (v) {
               if (v == 'symbols') {
                 _task(_symbols);
+              } else if (v == 'clear') {
+                _task(_clearNavigation);
               } else {
                 _task(() => _locations(v == 'bookmarks'));
               }
             }, itemBuilder: (_) => const [
               PopupMenuItem(value: 'symbols', child: Text('Find declarations')),
-              PopupMenuItem(value: 'bookmarks', child: Text('Session bookmarks')),
+              PopupMenuItem(value: 'bookmarks', child: Text('Saved bookmarks')),
+              PopupMenuItem(value: 'clear', child: Text('Clear saved navigation')),
               PopupMenuItem(value: 'history', child: Text('Navigation history')),
             ]),
           if (hasRoot)
