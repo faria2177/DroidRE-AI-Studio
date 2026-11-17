@@ -3,6 +3,7 @@ import 'dart:isolate';
 import 'package:flutter/foundation.dart';
 
 import 'elf_inspector.dart';
+import 'dart_snapshot_version_evidence.dart';
 import 'elf_section_inspector.dart';
 import 'elf_symbol_inspector.dart';
 import 'package_binary_reader.dart';
@@ -39,6 +40,10 @@ class FlutterSnapshotRegion {
     'availableBytes': availableBytes,
     'headerHex': headerHex,
     'snapshotMagic': snapshotMagic,
+    if (role.endsWith('data'))
+      'versionEvidence': DartSnapshotVersionEvidence.inspect(
+        Uint8List.fromList(headerHex.isEmpty ? [] : headerHex.split(' ').map((s) => int.parse(s, radix: 16)).toList()),
+        availableBytes),
   };
 }
 
