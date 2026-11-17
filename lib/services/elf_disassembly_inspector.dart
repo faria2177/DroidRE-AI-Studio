@@ -71,7 +71,7 @@ class ElfDisassemblyInspector {
     if (!section.fileBacked || section.type != 'PROGBITS' ||
         !section.flags.contains('EXEC') || section.flags.contains('COMPRESSED') ||
         section.virtualAddress < 0 ||
-        section.virtualAddress > 0x7ffffffff0000000 ||
+        section.virtualAddress > Aarch64PreviewDecoder.maxAddress ||
         section.virtualAddress % 4 != 0) {
       throw const FormatException('Section is not a supported executable range');
     }
@@ -99,6 +99,10 @@ class ElfDisassemblyInspector {
     }
     final count = ((rangeSize - offset) ~/ 4).clamp(0, limit).toInt();
     final fileOffset = section.fileOffset + rangeStart + offset;
+    if (rangeStart + offset + (count - 1) * 4 >
+        Aarch64PreviewDecoder.maxAddress - section.virtualAddress) {
+      throw const FormatException('Executable address range exceeds preview bounds');
+    }
     final address = section.virtualAddress + rangeStart + offset;
     final data = ByteData.sublistView(bytes);
     return ElfDisassemblyPage(

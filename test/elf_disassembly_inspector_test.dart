@@ -78,6 +78,11 @@ void main() {
     expect(() => ElfDisassemblyInspector.inspectBytes(bytes, 1), throwsFormatException);
   });
 
+  test('rejects addresses that cannot safely represent ADRP targets', () {
+    expect(() => Aarch64PreviewDecoder.decode(0x90000000, 0x7ffffffffffffffc),
+        throwsFormatException);
+  });
+
   test('reads native symbol value and size from ELF64 records', () {
     final bytes = makeElf64();
     final data = ByteData.sublistView(bytes);

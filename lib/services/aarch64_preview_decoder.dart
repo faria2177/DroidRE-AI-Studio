@@ -24,6 +24,9 @@ class Aarch64PreviewDecoder {
       ? '-0x${(-value).toRadixString(16)}'
       : '0x${value.toRadixString(16)}';
 
+  // Keep room for the largest positive ADRP displacement in signed ints.
+  static const maxAddress = 0x7ffffffefffff000;
+
   static const _conditions = [
     'eq', 'ne', 'cs', 'cc', 'mi', 'pl', 'vs', 'vc',
     'hi', 'ls', 'ge', 'lt', 'gt', 'le', 'al', 'nv',
@@ -31,7 +34,7 @@ class Aarch64PreviewDecoder {
 
   static Aarch64Instruction decode(int word, int address) {
     if (word < 0 || word > 0xffffffff || address < 0 ||
-        address > 0x7ffffffff0000000 || address % 4 != 0) {
+        address > maxAddress || address % 4 != 0) {
       throw const FormatException('Invalid AArch64 word or address');
     }
     final rd = word & 31;
