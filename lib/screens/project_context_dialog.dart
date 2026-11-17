@@ -16,7 +16,7 @@ class _ProjectContextDialogState extends State<ProjectContextDialog> {
   final _question = TextEditingController(text: 'Explain this code and its role in the application.');
   final _chosen = <int>{};
   CodeSearchResult? _result;
-  bool _busy = false;
+  bool _busy = false, _ranked = false;
   String _message = '';
 
   @override
@@ -39,8 +39,8 @@ class _ProjectContextDialogState extends State<ProjectContextDialog> {
     });
     try {
       final result = widget.folderUri != null
-          ? await ProjectContextSearch.saf(widget.folderUri!, keyword)
-          : await ProjectContextSearch.local(widget.folderPath!, keyword);
+          ? await ProjectContextSearch.saf(widget.folderUri!, keyword, ranked: _ranked)
+          : await ProjectContextSearch.local(widget.folderPath!, keyword, ranked: _ranked);
       if (mounted) {
         setState(() => _result = result);
       }
@@ -75,9 +75,15 @@ class _ProjectContextDialogState extends State<ProjectContextDialog> {
         child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
           const Text('Search local recovered text. Up to 500 files / 4 MiB. '
               'Select up to 12 snippets; nothing is sent automatically.'),
+          CheckboxListTile(value: _ranked, title: const Text('Rank multiple search terms'),
+            onChanged: _busy ? null : (v) => setState(() {
+              _ranked = v ?? false;
+              _result = null;
+              _chosen.clear();
+            })),
           TextField(controller: _query, enabled: !_busy,
             onSubmitted: (_) => _search(),
-            decoration: const InputDecoration(labelText: 'Keyword or exact phrase')),
+            decoration: InputDecoration(labelText: _ranked ? 'Question or keywords' : 'Keyword or exact phrase')),
           OutlinedButton(onPressed: _busy ? null : _search, child: const Text('Search local files')),
           if (_busy) const LinearProgressIndicator(),
           if (result != null)

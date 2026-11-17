@@ -4,6 +4,13 @@ import 'package:droidre_ai_studio/services/project_context_search.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  test('ranks multi-term evidence locally', () {
+    final terms = ProjectContextSearch.terms('Explain token validation and cache');
+    expect(terms, ['token', 'validation', 'cache']);
+    const a = CodeEvidence('a.java', 1, 1, 'token validation cache');
+    const b = CodeEvidence('b.java', 1, 1, 'token');
+    expect(ProjectContextSearch.relevance(a, terms), greaterThan(ProjectContextSearch.relevance(b, terms)));
+  });
   test('matches case insensitive literal and preserves relative line references', () {
     final hits = ProjectContextSearch.matchText('sources/Main.java',
         'first\nsecond\nTokenManager.load()\nfourth\nlast', 'tokenmanager');

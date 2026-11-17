@@ -75,9 +75,31 @@ class ProjectContextSearch {
     return matches;
   }
 
-  static Future<CodeSearchResult> local(String root, String query) =>
+  static List<String> terms(String query) {
+    final words = RegExp(r'[A-Za-z0-9_$][A-Za-z0-9_.$]{1,63}')
+        .allMatches(query.toLowerCase()).map((m) => m.group(0)!)
+        .where((word) => !const {'the','and','what','how','this','that','does','with','from','explain','code','where','which','for','is','of','in','to'}.contains(word))
+        .toSet().take(8).toList();
+    if (words.isEmpty || query.length > 200) {
+      throw const FormatException('Enter useful search terms (up to 200 characters)');
+    }
+    return words;
+  }
+
+  static int relevance(CodeEvidence evidence, List<String> terms) {
+    final content = evidence.text.toLowerCase();
+    final path = evidence.path.toLowerCase();
+    return terms.fold(0, (score, word) => score +
+        (content.contains(word) ? 3 : 0) + (path.contains(word) ? 1 : 0));
+  }
+
+  static Future<CodeSearchResult> local(String root, String query, {bool ranked = false}) =>
       Isolate.run(() async {
-        _query(query);
+        if (ranked) {
+          terms(query);
+        } else {
+          _query(query);
+        }
         final base = await Directory(root).resolveSymbolicLinks();
         final paths = <String>[];
         var visited = 0;
@@ -110,11 +132,15 @@ class ProjectContextSearch {
             return null;
           }
           return utf8.decode(bytes);
-        });
+        }, ranked: ranked);
       });
 
-  static Future<CodeSearchResult> saf(String uri, String query) async {
-    _query(query);
+  static Future<CodeSearchResult> saf(String uri, String query, {bool ranked = false}) async {
+    if (ranked) {
+      terms(query);
+    } else {
+      _query(query);
+    }
     final paths = await SafSourceRecoveryService.listFiles(uri);
     // Native SAF listing/preview is already bounded; cannot certify coverage.
     return _scan(paths.where(eligible).take(maxEntries).toList(), query, true,
@@ -124,18 +150,19 @@ class ProjectContextSearch {
             return null;
           }
           return content;
-        });
+        }, ranked: ranked);
   }
 
   static Future<CodeSearchResult> _scan(List<String> paths, String query,
-      bool partial, Future<String?> Function(String) read) async {
+      bool partial, Future<String?> Function(String) read, {bool ranked = false}) async {
+    final words = ranked ? terms(query) : <String>[];
     paths.sort();
     final matches = <CodeEvidence>[];
     var readCount = 0;
     var attempted = 0;
     var bytesRead = 0;
     for (final path in paths) {
-      if (attempted >= maxFiles || bytesRead >= maxBytes || matches.length >= maxMatches) {
+      if (attempted >= maxFiles || bytesRead >= maxBytes || (!ranked && matches.length >= maxMatches)) {
         partial = true;
         break;
       }
@@ -153,9 +180,33 @@ class ProjectContextSearch {
         }
         bytesRead += length;
         readCount++;
-        matches.addAll(matchText(path, text, query, limit: maxMatches - matches.length));
-        if (matches.length >= maxMatches) {
+        if (ranked) {
+          final seen = <int>{};
+          for (final word in words) {
+            for (final hit in matchText(path, text, word, limit: 8)) {
+              if (seen.add(hit.firstLine)) {
+                matches.add(hit);
+              }
+            }
+          }
+          matches.sort((a, b) {
+            final score = relevance(b, words).compareTo(relevance(a, words));
+            if (score != 0) {
+              return score;
+            }
+            final byPath = a.path.compareTo(b.path);
+            return byPath != 0 ? byPath : a.firstLine.compareTo(b.firstLine);
+          });
+          if (matches.length > maxMatches) {
+            matches.removeRange(maxMatches, matches.length);
+          }
+          // Each file/term is sampled, rather than exhaustively indexed.
           partial = true;
+        } else {
+          matches.addAll(matchText(path, text, query, limit: maxMatches - matches.length));
+          if (matches.length >= maxMatches) {
+            partial = true;
+          }
         }
       } catch (_) {
         partial = true;
