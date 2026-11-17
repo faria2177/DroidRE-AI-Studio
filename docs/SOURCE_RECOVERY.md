@@ -134,6 +134,18 @@ Malformed or oversized inputs may still be skipped and reported; a null
 cursor is not a guarantee of full recovery. Public-folder auto-generation
 still writes the initial window only. Resource previews can repeat.
 
+## Compiled resource index
+
+Each export includes `resources/RESOURCE_TABLE.json` with up to 250
+compiled resource entries, raw typed values, configuration indices,
+reference traces and bounded style-bag maps. The source table reader
+retains its 40 MiB input cap. `resources/XML_REFERENCES.json` maps binary
+XML typed attributes to raw IDs and candidate table names (512 references
+per document). XML stays unchanged; no framework resource guesses, dynamic
+ID remapping or runtime configuration selection. Missing or malformed
+resource tables do not prevent other previews. Resources can repeat across
+DEX windows.
+
 ## Scope, safety and limits
 
 - Per window: up to 3 DEX entries, 80 classes and 400 methods.

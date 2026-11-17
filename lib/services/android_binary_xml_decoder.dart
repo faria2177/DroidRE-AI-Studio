@@ -3,16 +3,39 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 
 @immutable
+class AndroidXmlReference {
+  const AndroidXmlReference({
+    required this.element,
+    required this.attribute,
+    required this.type,
+    required this.id,
+    required this.rawValuePresent,
+  });
+
+  final String element;
+  final String attribute;
+  final int type;
+  final int id;
+  final bool rawValuePresent;
+
+  String get idHex => '0x${id.toRadixString(16).padLeft(8, '0')}';
+}
+
+@immutable
 class DecodedAndroidXml {
   const DecodedAndroidXml({
     required this.xml,
     required this.elements,
     required this.attributes,
+    this.references = const [],
+    this.referencesTruncated = false,
   });
 
   final String xml;
   final int elements;
   final int attributes;
+  final List<AndroidXmlReference> references;
+  final bool referencesTruncated;
 }
 
 /// Read-only Android AXML (RES_XML_TYPE) tree viewer.
@@ -21,6 +44,7 @@ class AndroidBinaryXmlDecoder {
   const AndroidBinaryXmlDecoder._();
 
   static const maxBytes = 2 * 1024 * 1024;
+  static const maxReferences = 512;
   static const _none = 0xffffffff;
 
   static DecodedAndroidXml decode(Uint8List bytes) {
@@ -146,6 +170,8 @@ class AndroidBinaryXmlDecoder {
     final tags = <String>[];
     var elements = 0;
     var attributes = 0;
+    final references = <AndroidXmlReference>[];
+    var referencesTruncated = false;
     var cursor = u16(2);
     var chunks = 0;
     while (cursor < bytes.length) {
@@ -201,8 +227,21 @@ class AndroidBinaryXmlDecoder {
           final qualified = namespaces[attrNs] == null || namespaces[attrNs]!.isEmpty
               ? attrName : '${namespaces[attrNs]}:$attrName';
           final raw = u32(at + 8);
+          final valueType = bytes[at + 15];
+          final valueData = u32(at + 16);
+          if (valueType == 0x01 || valueType == 0x02 ||
+              valueType == 0x07 || valueType == 0x08) {
+            if (references.length < maxReferences) {
+              references.add(AndroidXmlReference(
+                element: tag, attribute: qualified, type: valueType,
+                id: valueData, rawValuePresent: raw != _none,
+              ));
+            } else {
+              referencesTruncated = true;
+            }
+          }
           final value = raw == _none
-              ? typed(bytes[at + 15], u32(at + 16))
+              ? typed(valueType, valueData)
               : fromPool(raw);
           buffer.write(' $qualified="${escape(value)}"');
           if (++attributes > 50000) {
@@ -234,6 +273,8 @@ class AndroidBinaryXmlDecoder {
       xml: buffer.toString(),
       elements: elements,
       attributes: attributes,
+      references: List.unmodifiable(references),
+      referencesTruncated: referencesTruncated,
     );
   }
 }

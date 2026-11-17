@@ -39,6 +39,8 @@ class ResourcePreview {
     this.xmlElementCount = 0,
     this.xmlAttributeCount = 0,
     this.xmlDecodeError,
+    this.xmlReferences = const [],
+    this.xmlReferencesTruncated = false,
   });
 
   final String name;
@@ -49,6 +51,8 @@ class ResourcePreview {
   final int xmlElementCount;
   final int xmlAttributeCount;
   final String? xmlDecodeError;
+  final List<AndroidXmlReference> xmlReferences;
+  final bool xmlReferencesTruncated;
 
   bool get isImage => RegExp(r'\.(png|jpg|jpeg|webp|gif)$',
       caseSensitive: false).hasMatch(name);
@@ -104,6 +108,8 @@ class ResourceInspector {
       xmlElementCount: decoded?.elements ?? 0,
       xmlAttributeCount: decoded?.attributes ?? 0,
       xmlDecodeError: decodeError,
+      xmlReferences: decoded?.references ?? const [],
+      xmlReferencesTruncated: decoded?.referencesTruncated ?? false,
     );
   }
 

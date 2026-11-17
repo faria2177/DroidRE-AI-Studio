@@ -54,6 +54,13 @@ results are linked only to adjacent move-result instructions within a complete
 normal-flow graph and outside branch entries. Unresolved results stay explicit.
 This is not SSA, type inference, structured loops or compilable Java.
 
+## Resource recovery index
+
+Source ZIP includes a read-only compiled table and XML-reference sidecar.
+Known-name hints never overwrite original XML IDs; dynamic, unavailable or
+ambiguous targets are explicit. The table reader is bounded to 250 values,
+40 MiB of input and 200,000 scanned slots. This is not a rebuildable resource tree.
+
 ## Known limitations
 
 - The source recovery ZIP produces non-compilable/non-assemblable text previews only. See `docs/SOURCE_RECOVERY.md` for bounds, privacy, and omitted source types.

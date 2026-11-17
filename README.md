@@ -52,6 +52,9 @@ source line/parameter/local-variable names; stripped or invalid debug data
 is not guessed. Coverage warnings remain in \`REPORT.json\`. It is **not** original source, compilable Java,
 assemblable Smali or a rebuildable Android Studio/Flutter project.
 If the user cancels folder selection, importing the APK still succeeds.
+The source ZIP also includes compiled resource value/bag metadata and typed
+XML reference name hints in `resources/RESOURCE_TABLE.json` and
+`resources/XML_REFERENCES.json`, without rewriting raw IDs.
 For large APKs, Tools → Export Source Preview ZIP supports a zero-based
 DEX:class:method cursor; the next cursor is filled after a successful save.
 See [Source Recovery](docs/SOURCE_RECOVERY.md) for limits, permitted folder

@@ -12,6 +12,7 @@ import 'dex_method_semantics_inspector.dart';
 import 'dex_debug_info_inspector.dart';
 import 'dex_method_pager.dart';
 import 'resource_inspector.dart';
+import 'resource_recovery_index.dart';
 
 /// Zero-based position in the numerically sorted top-level DEX list.
 /// A method index is an ordinal in the class's encoded method list.
@@ -626,6 +627,26 @@ class SourceRecoveryBundle {
       warning('No supported DEX files were decoded');
     }
 
+    ResourceTableSummary? table;
+    final tableEntry = entries['resources.arsc'];
+    if (tableEntry != null) {
+      final tableBytes = read(tableEntry, ResourceInspector.maxTableBytes);
+      if (tableBytes != null) {
+        try {
+          table = ResourceInspector.inspectTableBytes(tableBytes);
+          if (table.valuesTruncated || table.valueWarnings.isNotEmpty) {
+            warning('Compiled resource table preview is incomplete');
+          }
+        } catch (_) {
+          warning('Compiled resource table could not be decoded');
+        }
+      }
+    }
+    final resourceIndex = ResourceRecoveryIndex(table);
+    textFile('resources/RESOURCE_TABLE.json',
+        const JsonEncoder.withIndent('  ').convert(resourceIndex.toJson()));
+    final xmlReferenceRecords = <Map<String, Object?>>[];
+
     // Only small, regular, explicitly bounded members are copied. The
     // original package paths are never used as output ZIP entry paths.
     final resourceNames = entries.keys.where((name) =>
@@ -654,10 +675,22 @@ class SourceRecoveryBundle {
           'resources/raw/$storedName.bin', bytes));
       try {
         final decoded = ResourceInspector.previewBytes(name, bytes);
+        if (decoded.xmlDecodeError != null) {
+          warning('Binary XML preview failed; raw bytes retained: $name');
+        }
         if (decoded.decodedXml != null) {
           textFile('resources/decoded/$storedName.xml',
               decoded.decodedXml!);
           decodedPreview = true;
+          if (decoded.xmlReferencesTruncated) {
+            warning('XML resource references capped: $name');
+          }
+          xmlReferenceRecords.add({
+            'sourceResource': name,
+            'decodedPath': 'resources/decoded/$storedName.xml',
+            'partial': decoded.xmlReferencesTruncated,
+            'references': decoded.xmlReferences.map(resourceIndex.reference).toList(),
+          });
         } else if (decoded.textContent != null) {
           textFile('resources/decoded/$storedName.txt',
               decoded.textContent!);
@@ -672,6 +705,12 @@ class SourceRecoveryBundle {
         'decodedPreview': decodedPreview,
       });
     }
+    textFile('resources/XML_REFERENCES.json',
+        const JsonEncoder.withIndent('  ').convert({
+      'schemaVersion': 1,
+      'note': 'Resource names are hints from the bounded table preview; XML retains original IDs.',
+      'documents': xmlReferenceRecords,
+    }));
     final kindNotes = switch (detectedFramework) {
       'Flutter' =>
         'Flutter indicators detected. classes.dex often contains only the '
@@ -721,6 +760,9 @@ class SourceRecoveryBundle {
       'sourcePositionsRecovered': sourcePositionsRecovered,
       'localRangesRecovered': localRangesRecovered,
       'resourcesExported': resourcesExported,
+      'resourceTableAvailable': table != null,
+      'resourceValuesIndexed': table?.values.length ?? 0,
+      'xmlDocumentsIndexed': xmlReferenceRecords.length,
       'partial': partial,
       'warnings': warnings,
       'entries': records,
