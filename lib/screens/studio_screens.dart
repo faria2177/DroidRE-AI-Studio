@@ -798,6 +798,7 @@ class _AiStudioScreenState extends State<AiStudioScreen> {
   String _connectionStatus = '';
   final _chat = AiSessionContext();
   bool _includeHistory = true;
+  bool _autoProject = true;
   int _contextRevision = 0;
   static const _keyLinks = {
     'OpenRouter': 'https://openrouter.ai/keys',
@@ -1031,10 +1032,20 @@ class _AiStudioScreenState extends State<AiStudioScreen> {
     final question = promptController.text;
     setState(() => busy = true);
     try {
-      final outgoing = _includeHistory ? _chat.followUp(question) : question;
+      var prepared = question;
+      final project = widget.report;
+      if (_autoProject && project != null && question.trim().isNotEmpty &&
+          question.length <= 2000 && !question.contains('Evidence JSON:') &&
+          !question.contains('Recovered evidence JSON:')) {
+        prepared = await AiProjectBrief.prepare(project, question);
+      }
+      if (!mounted || revision != _contextRevision) {
+        return;
+      }
+      final outgoing = _includeHistory ? _chat.followUp(prepared) : prepared;
       if (outgoing != question) {
         final approved = await showDialog<bool>(context: context, builder: (context) =>
-          AlertDialog(title: const Text('Review follow-up with prior context'),
+          AlertDialog(title: const Text('Review combined AI context'),
             content: SizedBox(width: 640, height: 360, child: SingleChildScrollView(
               child: SelectableText(outgoing))),
             actions: [
@@ -1057,7 +1068,7 @@ class _AiStudioScreenState extends State<AiStudioScreen> {
         prompt: outgoing,
       );
       if (mounted && revision == _contextRevision) {
-        _chat.add(question, response.text);
+        _chat.add(prepared, response.text);
         setState(() => output =
             'Provider: ${response.provider}\n'
             '${response.fallbackReason == null ? '' : 'Fallback: ${response.fallbackReason}\n'}'
@@ -1088,6 +1099,14 @@ class _AiStudioScreenState extends State<AiStudioScreen> {
           FilledButton.tonalIcon(onPressed: busy ? null : _prepareProject,
             icon: const Icon(Icons.auto_awesome), label: const Text('Prepare active project analysis')),
           const Text('Reads selected recovered excerpts locally. Review before sending; no automatic upload.'),
+          SwitchListTile(value: _autoProject,
+            title: const Text('Include active project in questions'),
+            subtitle: const Text('Prepare relevant local evidence automatically for short questions. Review the complete prompt first.'),
+            onChanged: busy ? null : (value) => setState(() {
+              _autoProject = value;
+              consentToSendCode = false;
+              fallbackConsent = false;
+            })),
         ],
         SwitchListTile(value: _includeHistory,
           title: Text('Include chat history (${_chat.count} previous turns)'),
@@ -1922,7 +1941,7 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
           ),
           const ListTile(
             leading: Icon(Icons.build_circle_outlined),
-            title: Text('Version 0.9.1 — Preview'),
+            title: Text('Version 0.9.2 — Preview'),
             subtitle: Text('See docs/FEATURE_STATUS.md for engine limitations'),
           ),
         ],

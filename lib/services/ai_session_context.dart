@@ -25,7 +25,13 @@ class AiSessionContext {
     final past = <Map<String,String>>[];
     // The latest turn is most useful. Never silently exceed the provider cap.
     for (final turn in _turns.reversed) {
-      past.add({'user': clip(turn.$1, 10000), 'assistant': clip(turn.$2, 3500)});
+      final room = (40000 - question.length - 1800).clamp(0, 13500).toInt();
+      final userLimit = (room * 0.7).floor().clamp(0, 10000).toInt();
+      final answerLimit = (room - userLimit).clamp(0, 3500).toInt();
+      if (userLimit < 300 || answerLimit < 200) {
+        break;
+      }
+      past.add({'user': clip(turn.$1, userLimit), 'assistant': clip(turn.$2, answerLimit)});
     }
     String render() => 'Answer the current question using the reviewed prior exchange '
       'as context. Prior assistant answers are unverified, not source evidence. '

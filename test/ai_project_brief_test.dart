@@ -33,6 +33,8 @@ void main() {
     }
     expect(history.count, 3);
     expect(history.followUp('next'), isNot(contains('initial finding')));
+    final longPrompt = List.filled(30000, 'x').join();
+    expect(history.followUp(longPrompt).length, lessThanOrEqualTo(40000));
     history.clear();
     expect(history.followUp('new project'), 'new project');
   });

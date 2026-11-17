@@ -15,3 +15,5 @@ Prior answers are not evidence. Context is clipped to 40,000 characters.
 New chat, imported inspector draft, active project or recovery destination
 changes clear prior context. No keys or conversation stored on disk.
 Mock/fixture tests verify evidence and memory; actual provider/device test pending.
+
+The active-project switch is enabled by default: ordinary questions up to 2,000 characters automatically prepare a bounded brief before the combined-prompt review. Nothing is transmitted until approved. Disable it for standalone questions or paste a pre-reviewed evidence draft. History is bounded by remaining request capacity.
