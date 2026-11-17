@@ -41,3 +41,7 @@ The release certificate's SHA-1/SHA-256 must be registered for Google Sign-In.
 
 When JNI libraries are added, audit arm64 16 KB page-size alignment and ensure
 ABI completeness. Current Dart archive code does not ship a custom JNI parser.
+
+## Windows x64
+
+See [Windows installation and local build](WINDOWS_INSTALL.md). The workflow `windows-build.yml` generates the Windows runner, analyzes and tests the code, builds the release executable, and packages an unsigned per-user installer and portable ZIP with SHA-256 checksums. Actual CI status is shown in GitHub Actions.

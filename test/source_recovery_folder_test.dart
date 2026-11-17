@@ -98,6 +98,16 @@ void main() {
     expect(members, isEmpty);
   });
 
+  test('Windows reserved filenames are rejected if running on Windows', () async {
+    if (!Platform.isWindows) {
+      return;
+    }
+    await expectLater(SourceRecoveryFolderService.writeBundle(
+        root: root, projectId: 'reserved', packageName: 'app',
+        bundle: sampleBundle(rawPath: 'source/CON.txt')), throwsFormatException);
+    expect(await root.list().toList(), isEmpty);
+  });
+
   test('file preview rejects path traversal', () async {
     final result = await SourceRecoveryFolderService.writeBundle(
       root: root,

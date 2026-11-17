@@ -154,3 +154,7 @@ or unauthorized intrusion functions are included.
 ### Multi-AI routing
 
 Eight cloud providers plus desktop Ollama loopback; explicit consent for a single fallback. See [API providers](docs/AI_PROVIDERS.md) for limits.
+
+## Windows Desktop
+
+Windows x64 build and one-click per-user installer workflow: see [Windows install guide](docs/WINDOWS_INSTALL.md). Portable ZIP and installer are CI artifacts; Google login on Windows remains unsupported. Desktop output folder selection and Ctrl+O import are available.
