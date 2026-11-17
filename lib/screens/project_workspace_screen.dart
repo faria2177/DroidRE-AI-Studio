@@ -9,6 +9,7 @@ import '../services/local_export_service.dart';
 import '../services/project_workspace_service.dart';
 import '../services/project_symbol_index.dart';
 import '../services/workspace_draft_diff.dart';
+import '../services/workspace_completion.dart';
 import '../services/workspace_navigation_store.dart';
 import '../services/project_context_search.dart';
 import '../services/saf_source_recovery_service.dart';
@@ -527,6 +528,33 @@ class _ProjectWorkspaceScreenState extends State<ProjectWorkspaceScreen> {
     Expanded(child: ListView(children: _tree())),
   ]);
 
+  Future<void> _completeIdentifier() async {
+    final tab = _current;
+    if (tab == null || !_editable) {
+      return;
+    }
+    final original = tab.controller.text;
+    final (start, end, names) = WorkspaceCompletion.suggestions(
+      original, tab.controller.selection.baseOffset, tab.path);
+    if (names.isEmpty) {
+      setState(() => _message = 'No matching declarations in this file. Place cursor after a prefix.');
+      return;
+    }
+    final chosen = await showDialog<String>(context: context, builder: (context) =>
+      AlertDialog(title: const Text('Local declaration suggestions'),
+        content: SizedBox(width: 440, height: 300, child: ListView.builder(
+          itemCount: names.length, itemBuilder: (context, i) =>
+            ListTile(title: Text(names[i]), onTap: () => Navigator.pop(context, names[i])))),
+        actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel'))]));
+    if (mounted && chosen != null && tab.controller.text == original) {
+      setState(() {
+        tab.controller.value = TextEditingValue(
+          text: original.replaceRange(start, end, chosen),
+          selection: TextSelection.collapsed(offset: start + chosen.length));
+      });
+    }
+  }
+
   Future<void> _compareDraft() async {
     final tab = _current;
     if (tab == null) {
@@ -565,6 +593,9 @@ class _ProjectWorkspaceScreenState extends State<ProjectWorkspaceScreen> {
             icon: const Icon(Icons.search)),
           IconButton(onPressed: _busy ? null : () => _task(_bookmark), tooltip: 'Toggle line bookmark',
             icon: const Icon(Icons.bookmark_add_outlined)),
+          if (_editable)
+            IconButton(onPressed: _busy ? null : () => _task(_completeIdentifier),
+              tooltip: 'Suggest local declarations', icon: const Icon(Icons.auto_awesome)),
           if (_editable)
             IconButton(onPressed: _busy ? null : () => _task(_compareDraft),
               tooltip: 'Compare original and draft', icon: const Icon(Icons.compare_arrows)),

@@ -4,6 +4,9 @@ import 'package:flutter/services.dart';
 
 import '../services/ai_chat_service.dart';
 import '../services/analysis_agent.dart';
+import '../services/agent_evidence_verifier.dart';
+import '../services/project_workspace_service.dart';
+import '../services/saf_source_recovery_service.dart';
 import '../services/local_export_service.dart';
 import '../services/project_context_search.dart';
 
@@ -164,6 +167,15 @@ class _AnalysisAgentScreenState extends State<AnalysisAgentScreen> {
     }
   }
 
+  Future<void> _verifyEvidence() async {
+    final result = await AgentEvidenceVerifier.check(_reviewed, (path) =>
+      widget.uri != null ? SafSourceRecoveryService.readFile(widget.uri!, path) :
+        ProjectWorkspaceService.read(widget.root!, path));
+    if (mounted) {
+      setState(() => _message = result);
+    }
+  }
+
   Future<void> _exportReport() async {
     final saved = await LocalExportService.saveFile(
       dialogTitle: 'Save reviewed report (choose new filename)',
@@ -248,6 +260,8 @@ class _AnalysisAgentScreenState extends State<AnalysisAgentScreen> {
           _review(_report),
           OutlinedButton.icon(onPressed: () => Clipboard.setData(ClipboardData(text: _report)),
             icon: const Icon(Icons.copy), label: const Text('Copy evidence report')),
+          OutlinedButton.icon(onPressed: _busy ? null : () => _task(_verifyEvidence),
+            icon: const Icon(Icons.fact_check_outlined), label: const Text('Recheck evidence against current files')),
           OutlinedButton.icon(onPressed: _busy ? null : () => _task(_exportReport),
             icon: const Icon(Icons.save_alt), label: const Text('Export evidence report')),
           TextButton(onPressed: _busy ? null : () => setState(() {
