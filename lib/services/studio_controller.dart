@@ -12,6 +12,7 @@ import 'apk_analyzer.dart';
 import 'source_recovery_folder_service.dart';
 import 'saf_source_recovery_service.dart';
 import 'source_recovery_bundle.dart';
+import 'source_project_import.dart';
 
 class StudioController extends ChangeNotifier {
   final List<ApkReport> _projects = [];
@@ -67,7 +68,10 @@ class StudioController extends ChangeNotifier {
       for (final item in parsed) {
         if (item is Map) {
           final report = ApkReport.fromJson(Map<String, dynamic>.from(item));
-          if (await File(report.localPath).exists()) _projects.add(report);
+          if (report.sourceProject ? await Directory(report.localPath).exists() :
+              await File(report.localPath).exists()) {
+            _projects.add(report);
+          }
         }
       }
       if (_projects.isNotEmpty) _activeId = _projects.first.id;
@@ -194,7 +198,7 @@ class StudioController extends ChangeNotifier {
   /// Existing project folders are never overwritten.
   Future<bool> generateInSelectedFolder() async {
     final report = active;
-    if (report == null || _busy) {
+    if (report == null || report.sourceProject || _busy) {
       return false;
     }
     _busy = true;
@@ -207,6 +211,79 @@ class StudioController extends ChangeNotifier {
       _recoveryMessage = 'Source folder generation failed: $error';
       return false;
     } finally {
+      _busy = false;
+      notifyListeners();
+    }
+  }
+
+  Future<Directory> _sourceProjects() async {
+    final support = await getApplicationSupportDirectory();
+    return Directory(p.join(support.path, 'source-projects')).create(recursive: true);
+  }
+
+  Future<bool> importSourceProject({required bool folder}) async {
+    if (_busy) {
+      return false;
+    }
+    _busy = true;
+    _error = null;
+    _recoveryMessage = null;
+    notifyListeners();
+    Directory? copy;
+    try {
+      final id = DateTime.now().microsecondsSinceEpoch.toString();
+      final parent = await _sourceProjects();
+      final destination = p.join(parent.path, id);
+      copy = Directory(destination);
+      String name;
+      if (folder && Platform.isAndroid) {
+        final chosen = await SafSourceRecoveryService.copySourceFolder(id);
+        if (chosen == null) {
+          return false;
+        }
+        name = chosen;
+      } else if (folder) {
+        final path = await FilePicker.platform.getDirectoryPath(dialogTitle: 'Choose Android or Flutter source project');
+        if (path == null) {
+          return false;
+        }
+        name = p.basename(path);
+        await Isolate.run(() => SourceProjectImport.copyFolder(path, destination));
+      } else {
+        final selected = await FilePicker.platform.pickFiles(type: FileType.custom,
+          allowedExtensions: ['zip']);
+        if (selected == null) {
+          return false;
+        }
+        final path = selected.files.single.path;
+        if (path == null) throw const FormatException('ZIP is not locally readable');
+        name = selected.files.single.name;
+        await Isolate.run(() => SourceProjectImport.extractZip(path, destination));
+      }
+      final report = await Isolate.run(() => SourceProjectImport.describe(destination, name, id));
+      _projects.insert(0, report);
+      _activeId = report.id;
+      try {
+        await _save();
+      } catch (_) {
+        _projects.removeWhere((item) => item.id == id);
+        _activeId = _projects.isEmpty ? null : _projects.first.id;
+        rethrow;
+      }
+      _recoveryMessage = 'Imported source project: ${report.entryCount} files · ${report.framework}';
+      copy = null;
+      return true;
+    } catch (e) {
+      _error = 'Source project import failed: $e';
+      return false;
+    } finally {
+      if (copy != null) {
+        try {
+          if (await copy.exists()) await copy.delete(recursive: true);
+        } catch (_) {
+          // Do not mask the import error if staging cleanup fails.
+        }
+      }
       _busy = false;
       notifyListeners();
     }
@@ -289,6 +366,21 @@ class StudioController extends ChangeNotifier {
   }
 
   Future<void> deleteProject(ApkReport report) async {
+    if (report.sourceProject) {
+      final parent = await (await _sourceProjects()).resolveSymbolicLinks();
+      final dir = Directory(report.localPath);
+      if (await FileSystemEntity.type(dir.path, followLinks: false) == FileSystemEntityType.directory) {
+        final resolved = await dir.resolveSymbolicLinks();
+        if (p.equals(p.dirname(resolved), parent) && p.basename(resolved) == report.id) {
+          await dir.delete(recursive: true);
+        }
+      }
+      _projects.removeWhere((item) => item.id == report.id);
+      _activeId = _projects.isEmpty ? null : _projects.first.id;
+      await _save();
+      notifyListeners();
+      return;
+    }
     // Deletion only affects the app's copied artifact, never the user's source.
     final folder = await _projectFolder();
     final canonicalFolder = await folder.resolveSymbolicLinks();

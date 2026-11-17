@@ -41,6 +41,11 @@ class SafSourceRecoveryService {
 
   static bool get supported => Platform.isAndroid;
 
+  static Future<String?> copySourceFolder(String id) async {
+    if (!supported) return null;
+    return channel.invokeMethod<String>('copySourceFolder', {'id': id});
+  }
+
   static Future<SafRecoveryDestination?> selectedFolder() async {
     if (!supported) {
       return null;

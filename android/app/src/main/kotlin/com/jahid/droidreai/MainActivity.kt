@@ -13,6 +13,8 @@ import io.flutter.plugin.common.MethodChannel
 import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
 import java.io.IOException
+import java.io.File
+import java.util.Locale
 import java.util.concurrent.Executors
 import java.util.zip.ZipInputStream
 
@@ -20,6 +22,9 @@ import java.util.zip.ZipInputStream
 class MainActivity : FlutterActivity() {
     private val channelName = "com.jahid.droidreai/recovery_folder"
     private val requestTree = 2164
+    private val requestSource = 2165
+    private var sourceId: String? = null
+    private var pendingSource: MethodChannel.Result? = null
     private val prefsName = "droidre_source_recovery"
     private val treeKey = "tree_uri"
     private val displayKey = "tree_label"
@@ -37,6 +42,7 @@ class MainActivity : FlutterActivity() {
             .setMethodCallHandler { call, result ->
                 when (call.method) {
                     "chooseDirectory" -> chooseDirectory(result)
+                    "copySourceFolder" -> chooseSourceFolder(call, result)
                     "selectedDirectory" -> result.success(
                         selectedTree()?.let { treeInfo(it) }
                     )
@@ -76,6 +82,106 @@ class MainActivity : FlutterActivity() {
             }
     }
 
+    private fun chooseSourceFolder(call: MethodCall, result: MethodChannel.Result) {
+        val id = call.argument<String>("id")
+        if (id == null || !id.matches(Regex("[0-9]{1,24}")) ||
+            pendingSource != null || pendingSelection != null) {
+            result.error("SOURCE_PICKER", "Invalid request or another picker is open", null)
+            return
+        }
+        sourceId = id
+        pendingSource = result
+        try {
+            startActivityForResult(Intent(Intent.ACTION_OPEN_DOCUMENT_TREE).apply {
+                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_PREFIX_URI_PERMISSION)
+            }, requestSource)
+        } catch (e: Exception) {
+            sourceId = null
+            pendingSource = null
+            result.error("SOURCE_PICKER", e.message, null)
+        }
+    }
+
+    private fun copySourceTree(tree: Uri, id: String): String {
+        val base = File(filesDir, "source-projects").apply { mkdirs() }
+        val output = File(base, id)
+        if (!output.mkdir()) throw IOException("Source copy already exists")
+        val seen = HashSet<String>()
+        val visited = HashSet<String>()
+        var entries = 0
+        var files = 0
+        var total = 0L
+        val ignored = setOf(".git", ".gradle", ".dart_tool", ".idea", "build",
+            "node_modules", ".cxx", "local.properties", "key.properties")
+        fun skip(name: String): Boolean {
+            val n = name.lowercase(Locale.ROOT)
+            return n in ignored || n == ".env" || n.startsWith(".env.") ||
+                listOf(".jks", ".keystore", ".p12", ".pem", ".key").any { n.endsWith(it) }
+        }
+        fun visit(parent: Uri, prefix: String, depth: Int) {
+            if (depth > 31 || !visited.add(DocumentsContract.getDocumentId(parent))) {
+                throw IOException("Source tree depth or repeated directory exceeded")
+            }
+            val children = DocumentsContract.buildChildDocumentsUriUsingTree(
+                tree, DocumentsContract.getDocumentId(parent))
+            val columns = arrayOf(DocumentsContract.Document.COLUMN_DOCUMENT_ID,
+                DocumentsContract.Document.COLUMN_DISPLAY_NAME,
+                DocumentsContract.Document.COLUMN_MIME_TYPE)
+            (contentResolver.query(children, columns, null, null, null)
+                ?: throw IOException("Cannot read source directory")).use { cursor ->
+                while (cursor.moveToNext()) {
+                    if (++entries > 16000) throw IOException("Too many source entries")
+                    val name = cursor.getString(1) ?: throw IOException("Missing source name")
+                    if (name.isEmpty() || name == "." || name == ".." || name.length > 150 ||
+                        name.endsWith(".") || name.endsWith(" ") ||
+                        name.any { it.code < 32 || it in "/\\\\<>:\"|?*" } ||
+                        Regex("^(CON|PRN|AUX|NUL|COM[1-9]|LPT[1-9])(\\\\.|$)", RegexOption.IGNORE_CASE).containsMatchIn(name)) {
+                        throw IOException("Unsafe source path")
+                    }
+                    if (skip(name)) continue
+                    val relative = if (prefix.isEmpty()) name else "$prefix/$name"
+                    if (relative.length > 512 || !seen.add(relative.lowercase(Locale.ROOT))) {
+                        throw IOException("Long or conflicting source path")
+                    }
+                    val uri = DocumentsContract.buildDocumentUriUsingTree(tree, cursor.getString(0))
+                    if (cursor.getString(2) == DocumentsContract.Document.MIME_TYPE_DIR) {
+                        visit(uri, relative, depth + 1)
+                    } else {
+                        if (++files > 8000) throw IOException("Too many source files")
+                        val target = File(output, relative)
+                        if (!target.canonicalPath.startsWith(output.canonicalPath + File.separator)) {
+                            throw IOException("Source path escaped output")
+                        }
+                        target.parentFile?.mkdirs()
+                        var copied = 0L
+                        val buffer = ByteArray(32768)
+                        (contentResolver.openInputStream(uri) ?: throw IOException("Cannot read $name")).use { input ->
+                            target.outputStream().use { out ->
+                                while (true) {
+                                    val amount = input.read(buffer)
+                                    if (amount < 0) break
+                                    copied += amount
+                                    total += amount
+                                    if (copied > 24L * 1024 * 1024 || total > 128L * 1024 * 1024) {
+                                        throw IOException("Source file/copy size limit exceeded")
+                                    }
+                                    out.write(buffer, 0, amount)
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        try {
+            visit(rootDocument(tree), "", 0)
+            return displayName(rootDocument(tree), tree)
+        } catch (e: Exception) {
+            output.deleteRecursively()
+            throw e
+        }
+    }
+
     private fun chooseDirectory(result: MethodChannel.Result) {
         if (pendingSelection != null) {
             result.error("BUSY", "Folder selection is already in progress", null)
@@ -99,6 +205,26 @@ class MainActivity : FlutterActivity() {
     @Deprecated("Platform activity result bridge for Android document picker")
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
+        if (requestCode == requestSource) {
+            val waiting = pendingSource ?: return
+            val id = sourceId ?: return
+            pendingSource = null
+            sourceId = null
+            val tree = data?.data
+            if (resultCode != Activity.RESULT_OK || tree == null) {
+                waiting.success(null)
+                return
+            }
+            workers.execute {
+                try {
+                    val name = copySourceTree(tree, id)
+                    main.post { waiting.success(name) }
+                } catch (e: Exception) {
+                    main.post { waiting.error("SOURCE_COPY", e.message, null) }
+                }
+            }
+            return
+        }
         if (requestCode != requestTree) return
         val waiting = pendingSelection ?: return
         pendingSelection = null
