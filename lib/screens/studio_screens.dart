@@ -6,6 +6,8 @@ import 'package:flutter/services.dart';
 import '../models/apk_report.dart';
 import '../services/local_export_service.dart';
 import '../services/ai_chat_service.dart';
+import '../services/ai_project_brief.dart';
+import '../services/ai_session_context.dart';
 import '../services/google_account_service.dart';
 import '../services/studio_controller.dart';
 import '../services/source_recovery_bundle.dart';
@@ -794,6 +796,9 @@ class _AiStudioScreenState extends State<AiStudioScreen> {
   final _sessionModels = <AiEndpoint, String>{};
   bool _showKey = false;
   String _connectionStatus = '';
+  final _chat = AiSessionContext();
+  bool _includeHistory = true;
+  int _contextRevision = 0;
   static const _keyLinks = {
     'OpenRouter': 'https://openrouter.ai/keys',
     'OpenAI': 'https://platform.openai.com/api-keys',
@@ -826,9 +831,16 @@ class _AiStudioScreenState extends State<AiStudioScreen> {
   @override
   void didUpdateWidget(covariant AiStudioScreen oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.draftRevision != widget.draftRevision ||
-        oldWidget.initialPrompt != widget.initialPrompt) {
-      promptController.text = widget.initialPrompt;
+    final newProject = oldWidget.report?.id != widget.report?.id ||
+        oldWidget.report?.sha256 != widget.report?.sha256;
+    final newDraft = oldWidget.draftRevision != widget.draftRevision ||
+        oldWidget.initialPrompt != widget.initialPrompt;
+    final recoveryChanged = oldWidget.report?.recoveredFolderUri != widget.report?.recoveredFolderUri ||
+        oldWidget.report?.recoveredFolderPath != widget.report?.recoveredFolderPath;
+    if (newProject || newDraft || recoveryChanged) {
+      _contextRevision++;
+      _chat.clear();
+      promptController.text = newDraft ? widget.initialPrompt : '';
       consentToSendCode = false;
       fallbackConsent = false;
       output = '';
@@ -844,6 +856,41 @@ class _AiStudioScreenState extends State<AiStudioScreen> {
     fallbackModel.dispose();
     service.close();
     super.dispose();
+  }
+
+  Future<void> _prepareProject() async {
+    final report = widget.report;
+    if (report == null || busy) {
+      return;
+    }
+    final revision = _contextRevision;
+    final question = promptController.text.trim();
+    final q = question.isNotEmpty && question.length <= 2000 &&
+        !question.contains('Recovered evidence JSON:') ? question : AiProjectBrief.defaultQuestion;
+    setState(() {
+      busy = true;
+      output = '';
+    });
+    try {
+      final draft = await AiProjectBrief.prepare(report, q);
+      if (mounted && revision == _contextRevision) {
+        setState(() {
+          promptController.text = draft;
+          consentToSendCode = false;
+          fallbackConsent = false;
+          output = 'Project context prepared locally. Review the prompt and consent before sending. '
+              'This is a partial sample, not every recovered file.';
+        });
+      }
+    } catch (e) {
+      if (mounted && revision == _contextRevision) {
+        setState(() => output = 'Project context unavailable: $e');
+      }
+    } finally {
+      if (mounted) {
+        setState(() => busy = false);
+      }
+    }
   }
 
   Future<void> _contextSearch({bool chooseFolder = false}) async {
@@ -980,27 +1027,44 @@ class _AiStudioScreenState extends State<AiStudioScreen> {
     if (busy || !consentToSendCode || (allowFallback && !fallbackConsent)) {
       return;
     }
-    final revision = widget.draftRevision;
-    setState(() {
-      busy = true;
-      output = '';
-    });
+    final revision = _contextRevision;
+    final question = promptController.text;
+    setState(() => busy = true);
     try {
+      final outgoing = _includeHistory ? _chat.followUp(question) : question;
+      if (outgoing != question) {
+        final approved = await showDialog<bool>(context: context, builder: (context) =>
+          AlertDialog(title: const Text('Review follow-up with prior context'),
+            content: SizedBox(width: 640, height: 360, child: SingleChildScrollView(
+              child: SelectableText(outgoing))),
+            actions: [
+              TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
+              FilledButton(onPressed: () => Navigator.pop(context, true), child: const Text('Send reviewed context')),
+            ]));
+        if (!mounted || approved != true || revision != _contextRevision) {
+          return;
+        }
+      }
+      if (!mounted || revision != _contextRevision) {
+        return;
+      }
+      setState(() => output = '');
       final response = await service.completeWithFallback(
         primary: AiSelection(endpoint, modelController.text, keyController.text),
         fallback: fallbackEndpoint == null ? null :
           AiSelection(fallbackEndpoint!, fallbackModel.text, fallbackKey.text),
         allowFallback: allowFallback && fallbackConsent,
-        prompt: promptController.text,
+        prompt: outgoing,
       );
-      if (mounted && revision == widget.draftRevision) {
+      if (mounted && revision == _contextRevision) {
+        _chat.add(question, response.text);
         setState(() => output =
             'Provider: ${response.provider}\n'
             '${response.fallbackReason == null ? '' : 'Fallback: ${response.fallbackReason}\n'}'
             '\n${response.text}');
       }
     } catch (error) {
-      if (mounted && revision == widget.draftRevision) {
+      if (mounted && revision == _contextRevision) {
         setState(() => output = 'Request failed: $error');
       }
     } finally {
@@ -1015,8 +1079,39 @@ class _AiStudioScreenState extends State<AiStudioScreen> {
       children: [
         Text('AI Code Assistant', style: Theme.of(context).textTheme.headlineSmall),
         const SizedBox(height: 6),
-        const Text('Bring your own API key. Whole APK files are never uploaded '
-            'by this screen. Only the visible prompt is sent when you press Send.'),
+        const Text('Bring your own API key. Whole APK files are never uploaded. '
+            'Review the prepared prompt or follow-up context before sending.'),
+        if (widget.report != null) ...[
+          Card(child: ListTile(leading: const Icon(Icons.folder_open),
+            title: Text(widget.report!.packageLabel),
+            subtitle: Text('${widget.report!.recoveredFileCount} generated files · ${widget.report!.recoveryPartial ? 'partial recovery' : 'local project'}'))),
+          FilledButton.tonalIcon(onPressed: busy ? null : _prepareProject,
+            icon: const Icon(Icons.auto_awesome), label: const Text('Prepare active project analysis')),
+          const Text('Reads selected recovered excerpts locally. Review before sending; no automatic upload.'),
+        ],
+        SwitchListTile(value: _includeHistory,
+          title: Text('Include chat history (${_chat.count} previous turns)'),
+          subtitle: const Text('Session only. Exact combined prompt is reviewed before sending.'),
+          onChanged: busy ? null : (value) => setState(() {
+            _includeHistory = value;
+            consentToSendCode = false;
+            fallbackConsent = false;
+          })),
+        if (_chat.count > 0)
+          Wrap(spacing: 8, children: [
+            TextButton(onPressed: busy ? null : () => setState(() {
+              promptController.clear();
+              consentToSendCode = false;
+              fallbackConsent = false;
+            }), child: const Text('Ask follow-up')),
+            TextButton(onPressed: busy ? null : () => setState(() {
+              _chat.clear();
+              promptController.clear();
+              output = '';
+              consentToSendCode = false;
+              fallbackConsent = false;
+            }), child: const Text('New chat')),
+          ]),
         if (widget.report?.recoveredFolderPath != null || widget.report?.recoveredFolderUri != null)
           OutlinedButton.icon(onPressed: busy ? null : () => _contextSearch(),
             icon: const Icon(Icons.search), label: const Text('Search active recovered project')),
