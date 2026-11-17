@@ -45,3 +45,9 @@ ABI completeness. Current Dart archive code does not ship a custom JNI parser.
 ## Windows x64
 
 See [Windows installation and local build](WINDOWS_INSTALL.md). The workflow `windows-build.yml` generates the Windows runner, analyzes and tests the code, builds the release executable, and packages an unsigned per-user installer and portable ZIP with SHA-256 checksums. Actual CI status is shown in GitHub Actions.
+
+## Explicit owner signing
+
+See [owner signing](OWNER_SIGNING.md) for environment-only, fail-closed
+production signing mode and the Windows local build/verification helper.
+No production credentials are supplied to the ordinary test workflows.

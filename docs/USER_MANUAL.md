@@ -80,3 +80,8 @@ If a feature is unavailable, check platform, file limits, format support,
 external tools and CI status. Treat malformed/unsupported outputs as partial.
 External parsers are not sandboxed; use trusted tools and authorized samples
 or isolated VM. See RELEASE_READINESS.md; this is a development preview.
+
+## Owner signing preparation
+
+For an owner-signed APK/AAB build on Windows, follow OWNER_SIGNING.md.
+The normal downloaded development artifacts still use debug signing.

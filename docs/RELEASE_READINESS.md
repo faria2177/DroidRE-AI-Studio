@@ -30,3 +30,9 @@ not a percentage estimate of verified functionality.
 Debug-key-signed Android APK/AAB and unsigned Windows installer are testing outputs,
 not public production releases. Generated or decompiled code is not guaranteed
 original or buildable. No secret values belong in GitHub or analysis prompts.
+
+## Owner signing preparation
+
+An explicit owner signing Gradle configuration and local verified-artifact
+helper now exist (OWNER_SIGNING.md). No actual owner credential or signed
+device build has been provided or verified; the gate stays open.
