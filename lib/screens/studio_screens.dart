@@ -778,6 +778,19 @@ class _AiStudioScreenState extends State<AiStudioScreen> {
   final modelController = TextEditingController(text: aiEndpoints.first.defaultModel);
   late final TextEditingController promptController;
   final service = AiChatService();
+  final _sessionKeys = <AiEndpoint, String>{};
+  final _sessionModels = <AiEndpoint, String>{};
+  bool _showKey = false;
+  static const _keyLinks = {
+    'OpenRouter': 'https://openrouter.ai/keys',
+    'OpenAI': 'https://platform.openai.com/api-keys',
+    'DeepSeek': 'https://platform.deepseek.com/api_keys',
+    'Groq': 'https://console.groq.com/keys',
+    'Google Gemini': 'https://aistudio.google.com/apikey',
+    'Anthropic Claude': 'https://console.anthropic.com/settings/keys',
+    'xAI Grok': 'https://console.x.ai/',
+    'Mistral': 'https://console.mistral.ai/api-keys/',
+  };
   AiEndpoint endpoint = aiEndpoints.first;
   String output = '';
   bool busy = false;
@@ -913,6 +926,30 @@ class _AiStudioScreenState extends State<AiStudioScreen> {
     }
   }
 
+  Future<void> _testConnection() async {
+    if (busy) {
+      return;
+    }
+    setState(() { busy = true; output = 'Testing selected provider…'; });
+    try {
+      final answer = await service.complete(endpoint: endpoint,
+        model: modelController.text, apiKey: keyController.text,
+        prompt: 'Reply with OK only.');
+      if (mounted) {
+        setState(() => output = 'Connection test succeeded (no project code sent).\n'
+          'Provider: ${endpoint.name}\nModel: ${modelController.text}\n$answer');
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => output = 'Connection test failed: $e');
+      }
+    } finally {
+      if (mounted) {
+        setState(() => busy = false);
+      }
+    }
+  }
+
   Future<void> _send() async {
     if (busy || !consentToSendCode || (allowFallback && !fallbackConsent)) {
       return;
@@ -975,9 +1012,13 @@ class _AiStudioScreenState extends State<AiStudioScreen> {
               : (value) {
                   if (value == null) return;
                   setState(() {
+                    _sessionKeys[endpoint] = keyController.text;
+                    _sessionModels[endpoint] = modelController.text;
                     endpoint = value;
-                    keyController.clear();
-                    modelController.text = value.defaultModel;
+                    keyController.text = _sessionKeys[value] ?? '';
+                    modelController.text = _sessionModels[value] ?? value.defaultModel;
+                    _showKey = false;
+                    output = '';
                     consentToSendCode = false;
                     fallbackConsent = false;
                     if (fallbackEndpoint == value) {
@@ -1004,14 +1045,28 @@ class _AiStudioScreenState extends State<AiStudioScreen> {
         if (!endpoint.local) TextField(
           controller: keyController,
           enabled: !busy,
-          obscureText: true,
+          obscureText: !_showKey,
           autocorrect: false,
-          decoration: const InputDecoration(
+          enableSuggestions: false,
+          onChanged: (_) => setState(() { consentToSendCode = false; fallbackConsent = false; }),
+          decoration: InputDecoration(
             labelText: 'API key (session only)',
-            border: OutlineInputBorder(),
-            prefixIcon: Icon(Icons.key),
+            border: const OutlineInputBorder(),
+            prefixIcon: const Icon(Icons.key),
+            suffixIcon: IconButton(onPressed: () => setState(() => _showKey = !_showKey),
+              icon: Icon(_showKey ? Icons.visibility_off : Icons.visibility)),
           ),
         ),
+        if (_keyLinks.containsKey(endpoint.name))
+          TextButton(onPressed: () async {
+            await Clipboard.setData(ClipboardData(text: _keyLinks[endpoint.name]!));
+            if (mounted) {
+              setState(() => output = 'API key page link copied. Open it in your browser.');
+            }
+          }, child: const Text('Copy official API key page link')),
+        OutlinedButton.icon(onPressed: busy ? null : _testConnection,
+          icon: const Icon(Icons.network_check), label: const Text('Test connection (sends OK prompt only; may use quota)')),
+        const Text('If Model ID is empty, fetch available models and select one. Free plans have provider-specific limits.'),
         OutlinedButton.icon(
           onPressed: busy ? null : () => _discover(),
           icon: const Icon(Icons.manage_search),
@@ -1081,6 +1136,7 @@ class _AiStudioScreenState extends State<AiStudioScreen> {
             const SizedBox(height: 8),
             TextField(controller: fallbackKey, enabled: !busy, obscureText: true,
               autocorrect: false, enableSuggestions: false,
+              onChanged: (_) => setState(() => fallbackConsent = false),
               decoration: const InputDecoration(
                 labelText: 'Separate fallback API key (session only)',
                 border: OutlineInputBorder())),
@@ -1099,6 +1155,8 @@ class _AiStudioScreenState extends State<AiStudioScreen> {
           ),
         ],
         const SizedBox(height: 14),
+        if (!consentToSendCode)
+          const Text('Review your prompt and tick consent above to enable Send.'),
         FilledButton.icon(
           onPressed: busy || !consentToSendCode ||
               (allowFallback && !fallbackConsent) ? null : _send,

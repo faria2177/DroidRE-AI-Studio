@@ -6,6 +6,34 @@ import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 
 void main() {
+  test('Gemini native catalog filters generation models and calls native endpoint', () async {
+    final ep = aiEndpoints.singleWhere((e) => e.protocol == AiProtocol.gemini);
+    final service = AiChatService(client: MockClient((request) async {
+      expect(request.headers['x-goog-api-key'], 'test-key');
+      expect(request.headers.containsKey('Authorization'), false);
+      expect(request.followRedirects, false);
+      if (request.method == 'GET') {
+        return http.Response('{"models":[{"name":"models/gemini-demo","supportedGenerationMethods":["generateContent"]},{"name":"models/embedding-demo","supportedGenerationMethods":["embedContent"]}]}', 200);
+      }
+      expect(request.url.path, '/v1beta/models/gemini-demo:generateContent');
+      final body = jsonDecode(request.body) as Map;
+      expect(body['contents'], isNotEmpty);
+      expect(body['systemInstruction'], isNotEmpty);
+      return http.Response('{"candidates":[{"content":{"parts":[{"thought":true,"text":"internal"},{"text":"OK"}]}}]}', 200);
+    }));
+    expect(await service.listModels(ep, 'test-key'), ['gemini-demo']);
+    expect(await service.complete(endpoint: ep, model: 'models/gemini-demo',
+      apiKey: 'test-key', prompt: 'hello'), 'OK');
+    await expectLater(service.complete(endpoint: ep, model: '../bad',
+      apiKey: 'test-key', prompt: 'hello'), throwsFormatException);
+    service.close();
+  });
+
+  test('provider diagnostics are actionable without exposing server body', () {
+    expect(AiChatService.statusHint(402), contains('credits'));
+    expect(AiChatService.statusHint(404), contains('model IDs'));
+    expect(AiChatService.statusHint(429), contains('quota'));
+  });
   test('model discovery sends only provider credential and no prompt', () async {
     final service = AiChatService(client: MockClient((request) async {
       expect(request.method, 'GET');

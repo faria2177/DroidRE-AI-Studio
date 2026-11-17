@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:http/http.dart' as http;
@@ -20,13 +21,13 @@ class AiEndpoint {
   final bool local;
 }
 
-enum AiProtocol { chat, anthropic }
+enum AiProtocol { chat, anthropic, gemini }
 
 const aiEndpoints = <AiEndpoint>[
   AiEndpoint(
     name: 'OpenRouter',
     url: 'https://openrouter.ai/api/v1/chat/completions',
-    defaultModel: 'openai/gpt-4o-mini',
+    defaultModel: 'openrouter/free',
     description: 'Access eligible routed models with your own API key',
   ),
   AiEndpoint(
@@ -44,13 +45,14 @@ const aiEndpoints = <AiEndpoint>[
   AiEndpoint(
     name: 'Groq',
     url: 'https://api.groq.com/openai/v1/chat/completions',
-    defaultModel: '',
+    defaultModel: 'llama-3.1-8b-instant',
     description: 'Enter an available model ID from your Groq account',
   ),
   AiEndpoint(
     name: 'Google Gemini',
-    url: 'https://generativelanguage.googleapis.com/v1beta/openai/chat/completions',
+    url: 'https://generativelanguage.googleapis.com/v1beta/models',
     defaultModel: '',
+    protocol: AiProtocol.gemini,
     description: 'Use your Google AI Studio key and an eligible model ID',
   ),
   AiEndpoint(
@@ -158,7 +160,7 @@ class AiChatService {
       'OpenAI' => 'https://api.openai.com/v1/models',
       'DeepSeek' => 'https://api.deepseek.com/models',
       'Groq' => 'https://api.groq.com/openai/v1/models',
-      'Google Gemini' => 'https://generativelanguage.googleapis.com/v1beta/openai/models',
+      'Google Gemini' => 'https://generativelanguage.googleapis.com/v1beta/models?pageSize=1000',
       'Anthropic Claude' => 'https://api.anthropic.com/v1/models',
       'xAI Grok' => 'https://api.x.ai/v1/models',
       'Mistral' => 'https://api.mistral.ai/v1/models',
@@ -172,14 +174,15 @@ class AiChatService {
         if (endpoint.protocol == AiProtocol.anthropic) ...{
           'x-api-key': apiKey.trim(),
           'anthropic-version': '2023-06-01',
-        } else if (!endpoint.local)
+        } else if (endpoint.protocol == AiProtocol.gemini)
+          'x-goog-api-key': apiKey.trim()
+        else if (!endpoint.local)
           'Authorization': 'Bearer ${apiKey.trim()}',
       });
-    final response = await _client.send(request)
-        .timeout(const Duration(seconds: 30));
+    final response = await _send(request, const Duration(seconds: 30));
     if (response.statusCode < 200 || response.statusCode >= 300) {
       await response.stream.listen((_) {}).cancel();
-      throw HttpException('Model catalog returned HTTP ${response.statusCode}',
+      throw HttpException('Model catalog: ${statusHint(response.statusCode)}',
           statusCode: response.statusCode);
     }
     final bytes = <int>[];
@@ -190,13 +193,23 @@ class AiChatService {
       bytes.addAll(chunk);
     }
     final data = jsonDecode(utf8.decode(bytes));
-    if (data is! Map || data['data'] is! List) {
+    final catalog = data is Map ? data[endpoint.protocol == AiProtocol.gemini ? 'models' : 'data'] : null;
+    if (catalog is! List) {
       throw const FormatException('Unsupported model catalog response');
     }
     final ids = <String>{};
-    for (final item in (data['data'] as List).take(10000)) {
-      if (item is Map && item['id'] is String) {
-        final id = (item['id'] as String).trim();
+    for (final item in catalog.take(10000)) {
+      if (item is Map) {
+        final gemini = endpoint.protocol == AiProtocol.gemini;
+        if (gemini && (item['supportedGenerationMethods'] is! List ||
+            !(item['supportedGenerationMethods'] as List).contains('generateContent'))) {
+          continue;
+        }
+        final raw = item[gemini ? 'name' : 'id'];
+        if (raw is! String) {
+          continue;
+        }
+        final id = gemini ? raw.trim().replaceFirst(RegExp(r'^models/'), '') : raw.trim();
         if (id.isNotEmpty && id.length <= 256) {
           ids.add(id);
         }
@@ -217,18 +230,29 @@ class AiChatService {
   }) async {
     _validate(AiSelection(endpoint, model, apiKey), prompt);
     final anthropic = endpoint.protocol == AiProtocol.anthropic;
-    final request = http.Request('POST', Uri.parse(endpoint.url))
+    final gemini = endpoint.protocol == AiProtocol.gemini;
+    final id = gemini ? model.trim().replaceFirst(RegExp(r'^models/'), '') : model.trim();
+    if (gemini && !RegExp(r'^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$').hasMatch(id)) {
+      throw const FormatException('Invalid Gemini model ID');
+    }
+    final url = gemini ? '${endpoint.url}/$id:generateContent' : endpoint.url;
+    final request = http.Request('POST', Uri.parse(url))
       ..followRedirects = false
       ..headers.addAll({
         'Content-Type': 'application/json',
         if (anthropic) ...{
           'x-api-key': apiKey.trim(),
           'anthropic-version': '2023-06-01',
-        } else if (!endpoint.local)
+        } else if (gemini)
+          'x-goog-api-key': apiKey.trim()
+        else if (!endpoint.local)
           'Authorization': 'Bearer ${apiKey.trim()}',
       })
-      ..body = jsonEncode({
-        'model': model.trim(),
+      ..body = jsonEncode(gemini ? {
+        'systemInstruction': {'parts': [{'text': _system}]},
+        'contents': [{'role': 'user', 'parts': [{'text': prompt.trim()}]}],
+      } : {
+        'model': id,
         if (anthropic) ...{
           'system': _system,
           'max_tokens': 2048,
@@ -240,20 +264,18 @@ class AiChatService {
         'stream': false,
       });
 
-    final response = await _client.send(request)
-        .timeout(const Duration(seconds: 75));
+    final response = await _send(request, const Duration(seconds: 120));
     if (response.statusCode < 200 || response.statusCode >= 300) {
       // Do not expose arbitrary server error bodies, which can contain secrets.
       await response.stream.listen((_) {}).cancel();
       final code = response.statusCode;
       throw HttpException(
-        code == 401 || code == 403 ? 'API key or model access denied' :
-        code == 429 ? 'Rate limit exceeded' : 'Provider returned HTTP $code',
+        statusHint(code),
         statusCode: code,
       );
     }
     final bytes = <int>[];
-    await for (final chunk in response.stream.timeout(const Duration(seconds: 75))) {
+    await for (final chunk in response.stream.timeout(const Duration(seconds: 120))) {
       if (chunk.length > maxBodyBytes - bytes.length) {
         throw const FormatException('AI response exceeded 2 MiB');
       }
@@ -262,6 +284,22 @@ class AiChatService {
     final data = jsonDecode(utf8.decode(bytes));
     if (data is! Map) {
       throw const FormatException('Invalid AI response');
+    }
+    if (gemini) {
+      final candidates = data['candidates'];
+      if (candidates is List && candidates.isNotEmpty && candidates.first is Map) {
+        final candidate = candidates.first as Map;
+        final content = candidate['content'];
+        final parts = content is Map ? content['parts'] : null;
+        if (parts is List) {
+          final text = parts.whereType<Map>().where((p) => p['thought'] != true)
+              .map((p) => p['text']).whereType<String>().join('\n');
+          if (text.trim().isNotEmpty) {
+            return text;
+          }
+        }
+      }
+      throw const FormatException('Gemini returned no visible text (blocked, filtered or output exhausted). Try another prompt/model.');
     }
     if (anthropic) {
       final blocks = data['content'];
@@ -281,10 +319,38 @@ class AiChatService {
         if (content is String && content.trim().isNotEmpty) {
           return content;
         }
+        if (content is List) {
+          final text = content.whereType<Map>().where((b) => b['type'] == 'text')
+              .map((b) => b['text']).whereType<String>().join('\n');
+          if (text.trim().isNotEmpty) {
+            return text;
+          }
+        }
       }
     }
     throw const FormatException('Provider returned no text');
   }
+
+  Future<http.StreamedResponse> _send(http.Request request, Duration timeout) async {
+    try {
+      return await _client.send(request).timeout(timeout);
+    } on TimeoutException {
+      throw const HttpException('Connection timed out. Check network or try a faster model.');
+    } on http.ClientException {
+      throw const HttpException('Network/TLS connection failed. Check internet, DNS, firewall or provider availability.');
+    }
+  }
+
+  static String statusHint(int code) => 'HTTP $code: ${switch (code) {
+    400 || 422 => 'Request/model unsupported. Fetch a chat-capable model ID.',
+    401 => 'API key rejected. Check the selected provider and key.',
+    402 => 'Insufficient credits or billing required. Select a free eligible model or fund your account.',
+    403 => 'Access denied. Check model permission, key restrictions and region.',
+    404 => 'Model or endpoint unavailable. Fetch available model IDs and select another.',
+    429 => 'Rate limit or quota exhausted. Check provider quota; retry later or use an authorized alternative.',
+    500 || 502 || 503 || 504 || 529 => 'Provider temporarily unavailable. Try again or select another model.',
+    _ => 'Provider request failed. Check provider account/status.',
+  }}';
 
   void close() => _client.close();
 }
