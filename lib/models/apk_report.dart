@@ -99,6 +99,7 @@ class ApkReport {
     required this.manifest,
     required this.framework,
     required this.warnings,
+    this.sourceProject = false,
     this.recoveredFolderPath,
     this.recoveredFolderUri,
     this.recoveredFolderLabel,
@@ -106,6 +107,7 @@ class ApkReport {
     this.recoveredFileCount = 0,
   });
 
+  final bool sourceProject;
   final String id;
   final String fileName;
   final String localPath;
@@ -134,6 +136,7 @@ class ApkReport {
     required int fileCount,
   }) => ApkReport(
     id: id,
+    sourceProject: sourceProject,
     fileName: fileName,
     localPath: localPath,
     size: size,
@@ -158,6 +161,7 @@ class ApkReport {
     required int fileCount,
   }) => ApkReport(
     id: id,
+    sourceProject: sourceProject,
     fileName: fileName,
     localPath: localPath,
     size: size,
@@ -184,6 +188,7 @@ class ApkReport {
 
   Map<String, Object?> toJson() => {
     'id': id,
+    'sourceProject': sourceProject,
     'fileName': fileName,
     'localPath': localPath,
     'size': size,
@@ -205,6 +210,7 @@ class ApkReport {
 
   factory ApkReport.fromJson(Map<String, dynamic> json) => ApkReport(
     id: json['id'] as String? ?? '',
+    sourceProject: json['sourceProject'] as bool? ?? false,
     fileName: json['fileName'] as String? ?? '',
     localPath: json['localPath'] as String? ?? '',
     size: json['size'] as int? ?? 0,
