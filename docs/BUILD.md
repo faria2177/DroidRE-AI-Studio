@@ -51,3 +51,7 @@ See [Windows installation and local build](WINDOWS_INSTALL.md). The workflow `wi
 See [owner signing](OWNER_SIGNING.md) for environment-only, fail-closed
 production signing mode and the Windows local build/verification helper.
 No production credentials are supplied to the ordinary test workflows.
+
+## Hosted NDK setup
+
+Linux GitHub Android workflows preinstall NDK 28.2.13676358 for pinned Flutter 3.47.4 using three bounded attempts, checking the expected metadata and llvm-objdump. This targets transient SDK download/extraction errors, not Dart/Gradle compilation failures; no failed test or build is suppressed. Revisit this pin when upgrading Flutter.

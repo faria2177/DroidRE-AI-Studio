@@ -38,6 +38,8 @@ jobs:
         run: flutter analyze
       - name: Run tests
         run: flutter test
+      - name: Preinstall required NDK with bounded retries
+        run: bash tools/ci-install-ndk.sh
       - name: Build installable Android debug APK
         run: flutter build apk --debug
       - name: Check APK exists and calculate SHA-256

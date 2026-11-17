@@ -31,6 +31,8 @@ jobs:
       - run: dart format lib test
       - run: flutter analyze
       - run: flutter test
+      - name: Preinstall required NDK with bounded retries
+        run: bash tools/ci-install-ndk.sh
       - name: Build ABI-specific test artifacts
         run: flutter build apk --release --split-per-abi
       - name: Build test-signed Android app bundle
