@@ -8,6 +8,7 @@ import 'package:path/path.dart' as p;
 import '../services/local_export_service.dart';
 import '../services/project_workspace_service.dart';
 import '../services/project_symbol_index.dart';
+import '../services/workspace_draft_diff.dart';
 import '../services/workspace_navigation_store.dart';
 import '../services/project_context_search.dart';
 import '../services/saf_source_recovery_service.dart';
@@ -526,6 +527,20 @@ class _ProjectWorkspaceScreenState extends State<ProjectWorkspaceScreen> {
     Expanded(child: ListView(children: _tree())),
   ]);
 
+  Future<void> _compareDraft() async {
+    final tab = _current;
+    if (tab == null) {
+      return;
+    }
+    final diff = WorkspaceDraftDiff.compare(tab.original, tab.controller.text);
+    await showDialog<void>(context: context, builder: (context) =>
+      AlertDialog(title: const Text('Original versus draft'),
+        content: SizedBox(width: 680, height: 400,
+          child: SingleChildScrollView(child: SelectableText(diff,
+            style: const TextStyle(fontFamily: 'monospace')))),
+        actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text('Close'))]));
+  }
+
   Widget _editor() {
     final tab = _current;
     return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
@@ -550,6 +565,9 @@ class _ProjectWorkspaceScreenState extends State<ProjectWorkspaceScreen> {
             icon: const Icon(Icons.search)),
           IconButton(onPressed: _busy ? null : () => _task(_bookmark), tooltip: 'Toggle line bookmark',
             icon: const Icon(Icons.bookmark_add_outlined)),
+          if (_editable)
+            IconButton(onPressed: _busy ? null : () => _task(_compareDraft),
+              tooltip: 'Compare original and draft', icon: const Icon(Icons.compare_arrows)),
           if (_editable)
             IconButton(onPressed: _busy ? null : () => _task(_export),
               tooltip: 'Export edited copy', icon: const Icon(Icons.save_alt)),

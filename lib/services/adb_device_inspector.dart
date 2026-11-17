@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
@@ -146,6 +147,68 @@ class AdbDeviceInspector {
   Future<String> memoryInfo(String serial, String package) async {
     await _requireDevice(serial);
     return _run(memoryArgs(serial, package));
+  }
+
+  static List<String> liveLogArgs(String serial, int pid) {
+    if (!validSerial(serial) || pid <= 0 || pid > 0x7fffffff) {
+      throw const FormatException('Invalid device serial or PID');
+    }
+    return ['-s', serial, 'logcat', '--pid=$pid', '-T', '1', '-v', 'threadtime'];
+  }
+
+  Future<String> liveLogs(String serial, String package,
+      {required bool Function() cancelled, required void Function(String) onUpdate}) async {
+    if (!validPackage(package)) {
+      throw const FormatException('Invalid package');
+    }
+    await _requireDevice(serial);
+    final pid = int.tryParse((await _run(['-s', serial, 'shell', 'pidof', package])).trim());
+    if (pid == null || pid <= 0 || cancelled()) {
+      throw const FormatException('No single running main process or cancelled');
+    }
+    final process = await Process.start(executable, liveLogArgs(serial, pid), runInShell: false);
+    final buffer = StringBuffer();
+    var capped = false, stopped = false;
+    void append(String part) {
+      final remaining = maxOutput - buffer.length;
+      if (remaining > 0) {
+        buffer.write(part.substring(0, part.length.clamp(0, remaining).toInt()));
+      }
+      if (part.length > remaining) {
+        capped = true;
+        process.kill();
+      }
+    }
+    final stdout = process.stdout.transform(const Utf8Decoder(allowMalformed: true)).listen(append);
+    final stderr = process.stderr.transform(const Utf8Decoder(allowMalformed: true)).listen((_) {});
+    final clock = Stopwatch()..start();
+    final timer = Timer.periodic(const Duration(seconds: 1), (_) {
+      if (cancelled() || clock.elapsed >= const Duration(seconds: 20)) {
+        stopped = true;
+        process.kill();
+      } else {
+        onUpdate('Live PID $pid · ${clock.elapsed.inSeconds}s · provisional\n$buffer');
+      }
+    });
+    try {
+      final results = await Future.wait<Object?>([
+        process.exitCode, stdout.asFuture<void>(), stderr.asFuture<void>(),
+      ]).timeout(const Duration(seconds: 26));
+      timer.cancel();
+      if (results.first != 0 && !stopped && !capped) {
+        throw const FormatException('Live Logcat process failed');
+      }
+      if ((await _run(['-s', serial, 'shell', 'pidof', package])).trim() != '$pid') {
+        throw const FormatException('Process changed; capture discarded');
+      }
+      return 'PID $pid · ${capped ? 'output capped' : 'bounded live capture ended'} · '
+          'PID reuse remains possible\n$buffer';
+    } finally {
+      timer.cancel();
+      process.kill();
+      await stdout.cancel();
+      await stderr.cancel();
+    }
   }
 
   Future<String> logs(String serial, String package) async {

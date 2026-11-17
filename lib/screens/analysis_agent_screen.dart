@@ -1,8 +1,10 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../services/ai_chat_service.dart';
 import '../services/analysis_agent.dart';
+import '../services/local_export_service.dart';
 import '../services/project_context_search.dart';
 
 class AnalysisAgentScreen extends StatefulWidget {
@@ -162,6 +164,16 @@ class _AnalysisAgentScreenState extends State<AnalysisAgentScreen> {
     }
   }
 
+  Future<void> _exportReport() async {
+    final saved = await LocalExportService.saveFile(
+      dialogTitle: 'Save reviewed report (choose new filename)',
+      fileName: 'droidre-analysis-report.txt',
+      bytes: Uint8List.fromList(utf8.encode(_report)));
+    if (mounted) {
+      setState(() => _message = saved == null ? 'Export cancelled' : 'Report exported');
+    }
+  }
+
   Widget _review(String prompt) => Card(child: Padding(
     padding: const EdgeInsets.all(12), child: SelectableText(prompt)));
 
@@ -236,6 +248,12 @@ class _AnalysisAgentScreenState extends State<AnalysisAgentScreen> {
           _review(_report),
           OutlinedButton.icon(onPressed: () => Clipboard.setData(ClipboardData(text: _report)),
             icon: const Icon(Icons.copy), label: const Text('Copy evidence report')),
+          OutlinedButton.icon(onPressed: _busy ? null : () => _task(_exportReport),
+            icon: const Icon(Icons.save_alt), label: const Text('Export evidence report')),
+          TextButton(onPressed: _busy ? null : () => setState(() {
+            _report = '';
+            _step = 2;
+          }), child: const Text('Refine research using new search terms')),
           for (final item in _reviewed)
             ExpansionTile(title: Text('${item.id} · ${item.code.path}:${item.code.firstLine}'),
               children: [SelectableText(item.code.text)]),

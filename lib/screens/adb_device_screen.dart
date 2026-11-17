@@ -15,7 +15,7 @@ class _AdbDeviceScreenState extends State<AdbDeviceScreen> {
   String? _path, _serial, _package;
   List<AdbDevice> _devices = [];
   List<String> _packages = [];
-  bool _trusted = false, _busy = false, _monitor = false;
+  bool _trusted = false, _busy = false, _monitor = false, _live = false, _stopLive = false;
   String _output = '', _filter = '';
   AdbDeviceInspector get _adb => AdbDeviceInspector(_path!);
 
@@ -91,7 +91,31 @@ class _AdbDeviceScreenState extends State<AdbDeviceScreen> {
   @override
   void dispose() {
     _monitor = false;
+    _stopLive = true;
     super.dispose();
+  }
+
+  Future<void> _liveCapture() async {
+    setState(() {
+      _live = true;
+      _stopLive = false;
+    });
+    try {
+      final result = await _adb.liveLogs(_serial!, _package!,
+        cancelled: () => !mounted || _stopLive,
+        onUpdate: (text) {
+          if (mounted && !_stopLive) {
+            setState(() => _output = text);
+          }
+        });
+      if (mounted) {
+        setState(() => _output = result);
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _live = false);
+      }
+    }
   }
 
   Future<void> _monitorLogs() async {
@@ -185,12 +209,15 @@ class _AdbDeviceScreenState extends State<AdbDeviceScreen> {
           OutlinedButton(onPressed: _monitor ? () => setState(() => _monitor = false) :
               packageReady ? () => _task(_monitorLogs) : null,
             child: Text(_monitor ? 'Stop refreshing after current request' : 'Auto-refresh 10 log snapshots')),
+          OutlinedButton(onPressed: _live ? (_stopLive ? null : () => setState(() => _stopLive = true)) :
+              packageReady ? () => _task(_liveCapture) : null,
+            child: Text(_live ? 'Stop live capture' : 'Live Logcat (20 seconds)')),
           const Text('Logs can contain sensitive information; review before copying. '
               'Only the running main PID is requested, not all processes.'),
         ],
         if (_busy) const LinearProgressIndicator(),
         if (_output.isNotEmpty) ...[
-          TextButton.icon(onPressed: () => Clipboard.setData(ClipboardData(text: _output)),
+          TextButton.icon(onPressed: _live ? null : () => Clipboard.setData(ClipboardData(text: _output)),
             icon: const Icon(Icons.copy), label: const Text('Copy visible output')),
           SelectableText(_output, style: const TextStyle(fontFamily: 'monospace', fontSize: 12)),
         ],
