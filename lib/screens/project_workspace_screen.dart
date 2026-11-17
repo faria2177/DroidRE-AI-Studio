@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:isolate';
 
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
@@ -7,6 +8,7 @@ import 'package:path/path.dart' as p;
 
 import '../services/local_export_service.dart';
 import '../services/project_workspace_service.dart';
+import '../services/source_project_import.dart';
 import '../services/project_symbol_index.dart';
 import '../services/workspace_draft_diff.dart';
 import '../services/workspace_completion.dart';
@@ -60,7 +62,8 @@ class WorkspaceCodeController extends TextEditingController {
 class _WorkspaceTab {
   _WorkspaceTab(this.path, this.original)
       : controller = WorkspaceCodeController(text: original);
-  final String path, original;
+  final String path;
+  String original;
   final WorkspaceCodeController controller;
   bool get dirty => controller.text != original;
 }
@@ -73,7 +76,8 @@ class _TreeNode {
 }
 
 class ProjectWorkspaceScreen extends StatefulWidget {
-  const ProjectWorkspaceScreen({super.key, this.folderPath, this.folderUri});
+  const ProjectWorkspaceScreen({super.key, this.folderPath, this.folderUri, this.importedSource = false});
+  final bool importedSource;
   final String? folderPath, folderUri;
 
   @override
@@ -94,7 +98,7 @@ class _ProjectWorkspaceScreenState extends State<ProjectWorkspaceScreen> {
   final _find = TextEditingController();
   final _global = TextEditingController();
 
-  bool get _editable => Platform.isWindows && _uri == null;
+  bool get _editable => (Platform.isWindows || widget.importedSource) && _uri == null;
   _WorkspaceTab? get _current => _active >= 0 ? _tabs[_active] : null;
 
   @override
@@ -342,6 +346,29 @@ class _ProjectWorkspaceScreenState extends State<ProjectWorkspaceScreen> {
         _active = index.clamp(0, _tabs.length - 1).toInt();
       }
     });
+  }
+
+  Future<void> _saveImportedDraft() async {
+    final tab = _current;
+    if (!widget.importedSource || tab == null || !tab.dirty) return;
+    final draft = tab.controller.text;
+    await SourceProjectImport.saveDraft(_root!, tab.path, tab.original, draft);
+    if (mounted) {
+      setState(() {
+        tab.original = draft;
+        _message = 'Saved to imported project copy. Original project unchanged.';
+      });
+    }
+  }
+
+  Future<void> _exportProject() async {
+    final root = _root!;
+    final drafts = <String, String>{for (final tab in _tabs) if (tab.dirty) tab.path: tab.controller.text};
+    final bytes = await Isolate.run(() => SourceProjectImport.exportZip(root, drafts));
+    if (!mounted) return;
+    final saved = await LocalExportService.saveFile(dialogTitle: 'Export source project ZIP (choose a new file)',
+      fileName: 'Android-project-edited.zip', bytes: bytes);
+    if (mounted) setState(() => _message = saved == null ? 'Export cancelled' : 'Project ZIP exported with current drafts and saved changes.');
   }
 
   Future<void> _export() async {
@@ -599,7 +626,10 @@ class _ProjectWorkspaceScreenState extends State<ProjectWorkspaceScreen> {
           if (_editable)
             IconButton(onPressed: _busy ? null : () => _task(_compareDraft),
               tooltip: 'Compare original and draft', icon: const Icon(Icons.compare_arrows)),
-          if (_editable)
+          if (widget.importedSource)
+            IconButton(onPressed: _busy || !tab.dirty ? null : () => _task(_saveImportedDraft),
+              tooltip: 'Save to imported project copy', icon: const Icon(Icons.save)),
+          if (_editable && !widget.importedSource)
             IconButton(onPressed: _busy ? null : () => _task(_export),
               tooltip: 'Export edited copy', icon: const Icon(Icons.save_alt)),
         ]),
@@ -636,7 +666,10 @@ class _ProjectWorkspaceScreenState extends State<ProjectWorkspaceScreen> {
       },
       child: Scaffold(
         appBar: AppBar(title: const Text('Universal Project Workspace'), actions: [
-          if (Platform.isWindows)
+          if (widget.importedSource && hasRoot)
+            IconButton(onPressed: _busy ? null : () => _task(_exportProject),
+              icon: const Icon(Icons.archive_outlined), tooltip: 'Export edited project ZIP'),
+          if (Platform.isWindows && !widget.importedSource)
             IconButton(onPressed: _busy ? null : () => _task(_choose),
               icon: const Icon(Icons.folder_open), tooltip: 'Open source folder'),
           if (hasRoot)
@@ -660,6 +693,7 @@ class _ProjectWorkspaceScreenState extends State<ProjectWorkspaceScreen> {
         ]),
         body: Column(children: [
           Padding(padding: const EdgeInsets.all(8), child: Text(
+            widget.importedSource ? 'Edit the imported copy · Save file or export project ZIP · search reads saved files' :
             _editable ? 'Local drafts · export copies outside the source tree · search reads disk'
                 : 'Read-only local preview · search reads disk/provider, not unsaved drafts')),
           if (_busy) const LinearProgressIndicator(),

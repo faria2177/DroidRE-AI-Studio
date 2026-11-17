@@ -50,7 +50,8 @@ class SourceProjectImport {
       return names.any((s) => s.endsWith('.kt')) ? 'Android Gradle / Kotlin' :
           'Android Gradle / Java';
     }
-    if (names.any((s) => s.endsWith('androidmanifest.xml'))) {
+    if (names.any((s) => s.endsWith('androidmanifest.xml')) &&
+        names.any((s) => s.endsWith('.java') || s.endsWith('.kt'))) {
       return 'Android source project';
     }
     return null;
@@ -114,7 +115,6 @@ class SourceProjectImport {
         final target = File(p.joinAll([root.path, ...name.split('/')]));
         await target.parent.create(recursive: true);
         await target.writeAsBytes(bytes, flush: true);
-        entry.clear();
       }
     } catch (_) {
       if (await root.exists()) await root.delete(recursive: true);
@@ -214,6 +214,25 @@ class SourceProjectImport {
       framework: kind, warnings: const [
         'Imported source copy. Generated caches and common signing/secret files excluded; no build verification.'
       ], recoveredFolderPath: base, recoveredFileCount: items.length, sourceProject: true);
+  }
+
+  static Future<void> saveDraft(String root, String relative, String original, String draft) async {
+    final path = safePath(relative);
+    if (ignored(path)) throw const FormatException('Excluded file');
+    final bytes = utf8.encode(draft);
+    if (bytes.length > 65536 || bytes.contains(0)) throw const FormatException('Draft exceeds 64 KiB or contains NUL');
+    final base = await Directory(root).resolveSymbolicLinks();
+    final file = File(p.joinAll([base, ...path.split('/')]));
+    if (await FileSystemEntity.type(file.path, followLinks: false) != FileSystemEntityType.file ||
+        !p.isWithin(base, await file.resolveSymbolicLinks()) || await file.length() > 65536 ||
+        await file.readAsString() != original) {
+      throw const FormatException('File changed or is not a safe editable source');
+    }
+    final stage = await file.parent.createTemp('.droidre-save-');
+    try {
+      final replacement = await File(p.join(stage.path, 'draft')).writeAsBytes(bytes, flush: true);
+      await replacement.rename(file.path);
+    } finally { await stage.delete(recursive: true); }
   }
 
   /// Export the copied source and binary assets. Drafts overlay existing files only.

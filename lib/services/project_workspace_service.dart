@@ -31,7 +31,7 @@ class ProjectWorkspaceService {
     if (parts.any(ignoredPart)) {
       return false;
     }
-    return RegExp(r'\.(java|kt|smali|dart|cs|il|xml|json|txt|md|js|ts|yaml|yml|gradle|kts|properties|csproj|html|css)$',
+    return RegExp(r'\.(java|kt|smali|dart|cs|il|xml|json|txt|md|js|ts|yaml|yml|gradle|kts|properties|csproj|html|css|pro|toml|c|cpp|h|hpp|aidl|sh|bat)$',
         caseSensitive: false).hasMatch(path);
   }
 

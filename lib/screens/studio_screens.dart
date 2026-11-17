@@ -79,7 +79,15 @@ class _StudioShellState extends State<StudioShell> {
   ];
 
   Future<void> _import() async {
-    final completed = await widget.controller.importApk();
+    final choice = await showDialog<String>(context: context, builder: (context) => SimpleDialog(
+      title: const Text('Import project'), children: [
+        SimpleDialogOption(onPressed: () => Navigator.pop(context, 'apk'), child: const Text('APK / AAB / split archive')),
+        SimpleDialogOption(onPressed: () => Navigator.pop(context, 'zip'), child: const Text('Android Code Studio / Flutter project ZIP')),
+        SimpleDialogOption(onPressed: () => Navigator.pop(context, 'folder'), child: const Text('Android Code Studio / Flutter source folder')),
+      ]));
+    if (!mounted || choice == null) return;
+    final completed = choice == 'apk' ? await widget.controller.importApk() :
+      await widget.controller.importSourceProject(folder: choice == 'folder');
     if (mounted && completed) setState(() => _tab = 2);
   }
 
@@ -160,7 +168,7 @@ class _StudioShellState extends State<StudioShell> {
                   ),
                 ),
               IconButton(
-                tooltip: 'Import APK',
+                tooltip: 'Import project',
                 icon: const Icon(Icons.add_circle_outline),
                 onPressed: widget.controller.busy ? null : _import,
               ),
@@ -221,7 +229,7 @@ class _StudioShellState extends State<StudioShell> {
                         actions: [
                           TextButton(
                             onPressed: () => setState(() => _tab = 4),
-                            child: const Text('View generated files'),
+                            child: Text(widget.controller.active?.sourceProject == true ? 'Open project tools' : 'View generated files'),
                           ),
                           TextButton(
                             onPressed: widget.controller.clearRecoveryMessage,
@@ -323,7 +331,7 @@ class HomeScreen extends StatelessWidget {
               FilledButton.icon(
                 onPressed: controller.busy ? null : onImport,
                 icon: const Icon(Icons.file_open),
-                label: const Text('Import an APK or bundle'),
+                label: const Text('Import APK or source project'),
               ),
             ],
           ),
@@ -490,7 +498,7 @@ class ProjectsScreen extends StatelessWidget {
             FilledButton.icon(
               onPressed: controller.busy ? null : onImport,
               icon: const Icon(Icons.add),
-              label: const Text('Import APK'),
+              label: const Text('Import project'),
             ),
           ],
         ),
@@ -508,7 +516,7 @@ class ProjectsScreen extends StatelessWidget {
             title: Text(report.fileName),
             subtitle: Text(
               '${report.packageLabel} • ${_formatSize(report.size)} • '
-              '${report.dexCount} DEX',
+              '${report.sourceProject ? '${report.entryCount} source files' : '${report.dexCount} DEX'}',
               maxLines: 2,
             ),
             onTap: () {
@@ -579,6 +587,23 @@ class _InspectorScreenState extends State<InspectorScreen> {
         title: 'Choose an APK first',
         description: 'Import a package or select a project to see analysis.',
       );
+    }
+    if (report.sourceProject) {
+      return ListView(padding: const EdgeInsets.all(18), children: [
+        Text(report.fileName, style: Theme.of(context).textTheme.headlineSmall),
+        Text(report.framework),
+        Text('${report.entryCount} imported files · ${_formatSize(report.size)} at import'),
+        const Text('Editable app-private copy. Original project is unchanged. No Gradle build is executed.'),
+        FilledButton.icon(onPressed: () => Navigator.of(context).push(MaterialPageRoute<void>(
+          builder: (_) => ProjectWorkspaceScreen(folderPath: report.localPath, importedSource: true))),
+          icon: const Icon(Icons.folder_open), label: const Text('Open source editor / export ZIP')),
+        OutlinedButton.icon(onPressed: () => widget.onExplainCode?.call('Analyze this source project, architecture and build configuration.'),
+          icon: const Icon(Icons.auto_awesome), label: const Text('Analyze source project with AI')),
+        OutlinedButton.icon(onPressed: () => widget.onExplainCode?.call('Inspect the Gradle and Android project configuration for build problems. Explain corrections with file paths and code examples.'),
+          icon: const Icon(Icons.build_outlined), label: const Text('AI Gradle build troubleshooting')),
+        const Text('For a specific build failure, paste your Android Code Studio error log into AI Studio.'),
+        for (final warning in report.warnings) Text(warning),
+      ]);
     }
     return DefaultTabController(
       key: ValueKey(report.id),
@@ -867,7 +892,8 @@ class _AiStudioScreenState extends State<AiStudioScreen> {
     final revision = _contextRevision;
     final question = promptController.text.trim();
     final q = question.isNotEmpty && question.length <= 2000 &&
-        !question.contains('Recovered evidence JSON:') ? question : AiProjectBrief.defaultQuestion;
+        !question.contains('Recovered evidence JSON:') ? question : report.sourceProject
+        ? 'Analyze this source project and its build configuration.' : AiProjectBrief.defaultQuestion;
     setState(() {
       busy = true;
       output = '';
@@ -1095,7 +1121,7 @@ class _AiStudioScreenState extends State<AiStudioScreen> {
         if (widget.report != null) ...[
           Card(child: ListTile(leading: const Icon(Icons.folder_open),
             title: Text(widget.report!.packageLabel),
-            subtitle: Text('${widget.report!.recoveredFileCount} generated files · ${widget.report!.recoveryPartial ? 'partial recovery' : 'local project'}'))),
+            subtitle: Text('${widget.report!.recoveredFileCount} ${widget.report!.sourceProject ? 'imported' : 'generated'} files · ${widget.report!.recoveryPartial ? 'partial recovery' : 'local project'}'))),
           FilledButton.tonalIcon(onPressed: busy ? null : _prepareProject,
             icon: const Icon(Icons.auto_awesome), label: const Text('Prepare active project analysis')),
           const Text('Reads selected recovered excerpts locally. Review before sending; no automatic upload.'),
@@ -1489,6 +1515,19 @@ class _ToolsScreenState extends State<ToolsScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final source = widget.report;
+    if (source != null && source.sourceProject) {
+      return ListView(padding: const EdgeInsets.all(18), children: [
+        Text('Source Project Tools', style: Theme.of(context).textTheme.headlineSmall),
+        ListTile(leading: const Icon(Icons.folder_open), title: const Text('Project workspace / ZIP export'),
+          subtitle: const Text('Browse and edit the imported local copy'),
+          onTap: () => Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) =>
+            ProjectWorkspaceScreen(folderPath: source.localPath, importedSource: true)))),
+        ListTile(leading: const Icon(Icons.code), title: const Text('Source project overview'), onTap: widget.onAnalyze),
+        ListTile(leading: const Icon(Icons.add), title: const Text('Import another project'), onTap: widget.onImport),
+        const Text('APK binary tools require an imported APK, not a source folder.'),
+      ]);
+    }
     const planned = <(IconData, String, String)>[
       (Icons.computer, 'Full multi-architecture ELF disassembler', 'Native engine phase'),
       (Icons.draw_outlined, 'On-device signing / full rebuild', 'Authorized edit phase'),

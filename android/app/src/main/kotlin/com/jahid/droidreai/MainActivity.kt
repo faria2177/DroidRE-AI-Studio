@@ -135,7 +135,7 @@ class MainActivity : FlutterActivity() {
                     if (name.isEmpty() || name == "." || name == ".." || name.length > 150 ||
                         name.endsWith(".") || name.endsWith(" ") ||
                         name.any { it.code < 32 || it in "/\\\\<>:\"|?*" } ||
-                        Regex("^(CON|PRN|AUX|NUL|COM[1-9]|LPT[1-9])(\\\\.|$)", RegexOption.IGNORE_CASE).containsMatchIn(name)) {
+                        Regex("^(CON|PRN|AUX|NUL|COM[1-9]|LPT[1-9])(\\.|$)", RegexOption.IGNORE_CASE).containsMatchIn(name)) {
                         throw IOException("Unsafe source path")
                     }
                     if (skip(name)) continue
