@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -80,6 +82,22 @@ class _RecoveredFolderBrowserScreenState
     appBar: AppBar(
       title: const Text('Generated Source Files'),
       actions: [
+        if (Platform.isWindows && widget.folderPath != null)
+          IconButton(
+            tooltip: 'Open in File Explorer',
+            icon: const Icon(Icons.folder_open),
+            onPressed: () async {
+              try {
+                await Process.start('explorer.exe', [widget.folderPath!],
+                    mode: ProcessStartMode.detached);
+              } catch (error) {
+                if (context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('Cannot open folder: $error')));
+                }
+              }
+            },
+          ),
         IconButton(
           tooltip: 'Copy folder path',
           icon: const Icon(Icons.copy_all_outlined),
@@ -109,7 +127,7 @@ class _RecoveredFolderBrowserScreenState
                   ? 'Generated in a user-selected File Manager folder '
                       'outside Android/data using Android document access. '
                       'The project remains offline and read-only.'
-                  : 'Generated in app-specific storage. '
+                  : 'Generated in a local filesystem folder. '
                       'No device-wide storage permission is required.'),
               const SizedBox(height: 6),
               SelectableText(widget.folderLabel ??

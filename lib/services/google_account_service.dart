@@ -20,6 +20,7 @@ class GoogleAccountService extends ChangeNotifier {
   bool _loaded = false;
 
   String get webClientId => _webClientId;
+  bool get supported => Platform.isAndroid || Platform.isIOS || Platform.isMacOS;
   bool get configured => isValidClientId(_webClientId);
   GoogleSignInAccount? get account => _account;
   bool get requiresRestart =>
@@ -69,6 +70,9 @@ class GoogleAccountService extends ChangeNotifier {
   }
 
   Future<void> _initialize() async {
+    if (!supported) {
+      throw UnsupportedError('Google sign-in is unavailable on this platform');
+    }
     await loadConfiguration();
     if (!configured) {
       throw StateError('Configure a Google Web OAuth Client ID first');

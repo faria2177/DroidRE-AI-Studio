@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:file_picker/file_picker.dart';
 
 import '../models/apk_report.dart';
@@ -65,7 +66,9 @@ class _StudioShellState extends State<StudioShell> {
     return AnimatedBuilder(
       animation: widget.controller,
       builder: (context, _) {
-        final wide = MediaQuery.sizeOf(context).width >= 850;
+        final width = MediaQuery.sizeOf(context).width;
+        final wide = width >= 850;
+        final expandedRail = width >= 1150;
         final tabs = <Widget>[
           HomeScreen(
             controller: widget.controller,
@@ -93,7 +96,20 @@ class _StudioShellState extends State<StudioShell> {
             onAnalyze: () => setState(() => _tab = 2),
           ),
         ];
-        return Scaffold(
+        return Shortcuts(
+          shortcuts: const <ShortcutActivator, Intent>{
+            SingleActivator(LogicalKeyboardKey.keyO, control: true): _ImportApkIntent(),
+          },
+          child: Actions(
+            actions: <Type, Action<Intent>>{
+              _ImportApkIntent: CallbackAction<_ImportApkIntent>(onInvoke: (_) {
+                if (!widget.controller.busy) {
+                  _import();
+                }
+                return null;
+              }),
+            },
+            child: Focus(autofocus: true, child: Scaffold(
           appBar: AppBar(
             titleSpacing: 20,
             title: Row(
@@ -141,7 +157,9 @@ class _StudioShellState extends State<StudioShell> {
                 NavigationRail(
                   selectedIndex: _tab,
                   onDestinationSelected: (value) => setState(() => _tab = value),
-                  labelType: NavigationRailLabelType.all,
+                  extended: expandedRail,
+                  minExtendedWidth: 208,
+                  labelType: expandedRail ? NavigationRailLabelType.none : NavigationRailLabelType.all,
                   destinations: List.generate(
                     _titles.length,
                     (index) => NavigationRailDestination(
@@ -151,9 +169,18 @@ class _StudioShellState extends State<StudioShell> {
                     ),
                   ),
                 ),
+              if (wide) const VerticalDivider(width: 1),
               Expanded(
                 child: Column(
                   children: [
+                    if (wide && widget.controller.active != null)
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 8),
+                        color: Theme.of(context).colorScheme.surfaceContainer,
+                        child: Text('Active project: ${widget.controller.active!.fileName}',
+                            overflow: TextOverflow.ellipsis),
+                      ),
                     if (widget.controller.error != null)
                       MaterialBanner(
                         content: Text(widget.controller.error!),
@@ -201,10 +228,14 @@ class _StudioShellState extends State<StudioShell> {
                     ),
                   ),
                 ),
-        );
+        ))));
       },
     );
   }
+}
+
+class _ImportApkIntent extends Intent {
+  const _ImportApkIntent();
 }
 
 class HomeScreen extends StatelessWidget {
@@ -1207,16 +1238,18 @@ class _ToolsScreenState extends State<ToolsScreen> {
                     ? 'Import an APK first to enable this feature.'
                     : 'Selected APK: ${widget.report!.fileName}'),
                 const SizedBox(height: 6),
-                const Text('After APK import, choose a writable folder in '
+                if (widget.controller.desktopRecovery)
+                  const Text('Choose a desktop folder for generated previews, or use local app storage. Existing folders are not overwritten.')
+                else const Text('After APK import, choose a writable folder in '
                     'the Android system file picker. DroidRE creates the '
                     'reconstructed project there, outside Android/data, '
                     'with technology-aware notes, Java-like text, Dalvik '
                     'reports and resource previews. Output is not original '
                     'or compilable source.'),
                 const SizedBox(height: 10),
-                Text(widget.controller.sourceDestination == null
-                    ? 'No public recovery folder selected.'
-                    : 'Destination: ${widget.controller.sourceDestination!.label}'),
+                Text(widget.controller.recoveryDestinationLabel == null
+                    ? 'No custom recovery folder selected.'
+                    : 'Destination: ${widget.controller.recoveryDestinationLabel}'),
                 const SizedBox(height: 8),
                 OutlinedButton.icon(
                   onPressed: widget.controller.busy
@@ -1224,7 +1257,8 @@ class _ToolsScreenState extends State<ToolsScreen> {
                           await widget.controller.chooseRecoveryDestination();
                         },
                   icon: const Icon(Icons.create_new_folder_outlined),
-                  label: const Text('Choose File Manager Folder'),
+                  label: Text(widget.controller.desktopRecovery
+                      ? 'Choose desktop output folder' : 'Choose File Manager Folder'),
                 ),
                 const SizedBox(height: 8),
                 FilledButton.icon(
@@ -1236,7 +1270,7 @@ class _ToolsScreenState extends State<ToolsScreen> {
                   label: const Text('Generate Code in Selected Folder'),
                 ),
                 const SizedBox(height: 8),
-                const Text('Android 11+ restricts selecting storage roots '
+                if (!widget.controller.desktopRecovery) const Text('Android 11+ restricts selecting storage roots '
                     'and the Downloads root. Choose Documents or another '
                     'writable subfolder. Existing generated project folders '
                     'will never be overwritten.'),
@@ -1355,7 +1389,7 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
       await account.loadConfiguration();
       if (!mounted) return;
       clientIdController.text = account.webClientId;
-      if (account.configured && !account.requiresRestart) {
+      if (account.supported && account.configured && !account.requiresRestart) {
         await account.restoreSession();
       }
     } catch (error) {
@@ -1409,6 +1443,9 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
         children: [
           Text('Google account', style: Theme.of(context).textTheme.titleLarge),
           const SizedBox(height: 8),
+          if (!account.supported)
+            const Text('Google sign-in is not implemented on Windows/Linux. Local projects and AI Studio work without an account.')
+          else ...[
           Text(account.configured
               ? 'Web OAuth Client ID is configured. Android package and signing '
                   'fingerprint must also be registered with Google Cloud.'
@@ -1455,6 +1492,7 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
               },
               child: const Text('Sign out'),
             ),
+          ],
           if (message.isNotEmpty) Padding(
             padding: const EdgeInsets.symmetric(vertical: 12),
             child: Text(message),
@@ -1473,7 +1511,7 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
           ),
           const ListTile(
             leading: Icon(Icons.build_circle_outlined),
-            title: Text('Version 0.6.0 — Reverse Engineering Studio'),
+            title: Text('Version 0.7.0 — Reverse Engineering Studio'),
             subtitle: Text('See docs/FEATURE_STATUS.md for engine limitations'),
           ),
         ],

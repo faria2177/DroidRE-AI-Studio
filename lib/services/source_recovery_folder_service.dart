@@ -5,6 +5,7 @@ import 'dart:isolate';
 import 'package:archive/archive.dart';
 import 'package:flutter/foundation.dart';
 import 'package:path_provider/path_provider.dart';
+import 'package:path/path.dart' as p;
 
 import '../models/apk_report.dart';
 import 'source_recovery_bundle.dart';
@@ -54,9 +55,9 @@ class SourceRecoveryFolderService {
 
   /// Automatically invoked *after* an APK has been safely imported and
   /// indexed. Failing to recover source never invalidates the APK import.
-  static Future<RecoveredFolderResult> generate(ApkReport report) async {
+  static Future<RecoveredFolderResult> generate(ApkReport report, {Directory? destination}) async {
     final bundle = await SourceRecoveryBundle.fromProject(report);
-    final root = await storageRoot();
+    final root = destination ?? await storageRoot();
     return writeBundle(
       root: root,
       projectId: report.id,
@@ -94,8 +95,8 @@ class SourceRecoveryFolderService {
     final root = Directory(rootPath);
     await root.create(recursive: true);
     final targetName = '${_safeName(packageName)}_${_safeName(projectId)}';
-    final finalFolder = Directory('${root.path}/$targetName');
-    if (await finalFolder.exists()) {
+    final finalFolder = Directory(p.join(root.path, targetName));
+    if (await FileSystemEntity.type(finalFolder.path, followLinks: false) != FileSystemEntityType.notFound) {
       // Do not overwrite any previously generated or user-edited files.
       throw const FileSystemException('Recovery folder already exists');
     }
@@ -118,10 +119,10 @@ class SourceRecoveryFolderService {
         }
         final path = item.name.replaceAll('\\', '/');
         final segments = path.split('/');
-        if (path.startsWith('/') ||
+        if (!_isSafeRelativePath(path) || path.startsWith('/') ||
             segments.any((part) => part.isEmpty || part == '.' ||
                 part == '..' || part.contains(':')) ||
-            item.isSymbolicLink || !seen.add(path)) {
+            item.isSymbolicLink || !seen.add(Platform.isWindows ? path.toLowerCase() : path)) {
           throw const FormatException(
               'Recovery ZIP contains an unsafe or duplicate path');
         }
@@ -176,7 +177,7 @@ class SourceRecoveryFolderService {
       if (entity is! File) {
         continue;
       }
-      final relative = entity.path.substring(folder.path.length + 1)
+      final relative = p.relative(entity.path, from: folder.path)
           .replaceAll('\\', '/');
       if (_isSafeRelativePath(relative)) {
         files.add(relative);
@@ -193,8 +194,20 @@ class SourceRecoveryFolderService {
     if (value.isEmpty || value.startsWith('/') || value.contains('\\')) {
       return false;
     }
-    return value.split('/').every((segment) => segment.isNotEmpty &&
-        segment != '.' && segment != '..' && !segment.contains(':'));
+    return value.split('/').every((segment) {
+      if (segment.isEmpty || segment == '.' || segment == '..' ||
+          segment.contains(':') || segment.contains('\u0000')) {
+        return false;
+      }
+      if (Platform.isWindows &&
+          (RegExp(r'[<>:"|?*\x00-\x1f]').hasMatch(segment) ||
+              segment.endsWith('.') || segment.endsWith(' ') ||
+              RegExp(r'^(CON|PRN|AUX|NUL|COM[1-9]|LPT[1-9])(?:\.|$)',
+                  caseSensitive: false).hasMatch(segment))) {
+        return false;
+      }
+      return true;
+    });
   }
 
   /// In-app preview only: rejects traversal and symlinks and is bounded.
@@ -207,9 +220,9 @@ class SourceRecoveryFolderService {
     }
     final folder = Directory(folderPath);
     final base = await folder.resolveSymbolicLinks();
-    final file = File('$base/$relativePath');
+    final file = File(p.joinAll([base, ...relativePath.split('/')]));
     final resolved = await file.resolveSymbolicLinks();
-    if (!resolved.startsWith('$base/')) {
+    if (!p.isWithin(base, resolved)) {
       throw const FormatException('File points outside recovered folder');
     }
     final size = await file.length();

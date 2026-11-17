@@ -5,6 +5,7 @@ import 'dart:isolate';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/foundation.dart';
 import 'package:path_provider/path_provider.dart';
+import 'package:path/path.dart' as p;
 
 import '../models/apk_report.dart';
 import 'apk_analyzer.dart';
@@ -19,6 +20,9 @@ class StudioController extends ChangeNotifier {
   String? _error;
   String? _recoveryMessage;
   SafRecoveryDestination? _sourceDestination;
+  String? _desktopRecoveryPath;
+  bool get desktopRecovery => Platform.isWindows || Platform.isLinux || Platform.isMacOS;
+  String? get recoveryDestinationLabel => _sourceDestination?.label ?? _desktopRecoveryPath;
 
   List<ApkReport> get projects => List.unmodifiable(_projects);
   ApkReport? get active {
@@ -105,10 +109,21 @@ class StudioController extends ChangeNotifier {
 
   /// Requests a public, writable folder through the Android system picker.
   Future<bool> chooseRecoveryDestination() async {
-    if (!SafSourceRecoveryService.supported || _busy) {
+    if ((!SafSourceRecoveryService.supported && !desktopRecovery) || _busy) {
       return false;
     }
     try {
+      if (desktopRecovery) {
+        final chosen = await FilePicker.platform.getDirectoryPath(
+            dialogTitle: 'Choose source recovery folder');
+        if (chosen == null) {
+          return false;
+        }
+        _desktopRecoveryPath = await Directory(chosen).resolveSymbolicLinks();
+        _recoveryMessage = 'Recovery destination: $_desktopRecoveryPath';
+        notifyListeners();
+        return true;
+      }
       final selected = await SafSourceRecoveryService.chooseFolder();
       if (selected == null) {
         _recoveryMessage = 'Folder selection cancelled. Existing APK '
@@ -158,7 +173,8 @@ class StudioController extends ChangeNotifier {
           '${generated.partial ? ' (partial recovery)' : ''}';
     } else {
       // Desktop uses the existing app-owned storage implementation.
-      final generated = await SourceRecoveryFolderService.generate(report);
+      final generated = await SourceRecoveryFolderService.generate(report,
+          destination: _desktopRecoveryPath == null ? null : Directory(_desktopRecoveryPath!));
       final index = _projects.indexWhere((item) => item.id == report.id);
       if (index >= 0) {
         _projects[index] = report.withRecovery(
@@ -277,8 +293,14 @@ class StudioController extends ChangeNotifier {
     final folder = await _projectFolder();
     final canonicalFolder = await folder.resolveSymbolicLinks();
     final artifact = File(report.localPath);
-    if (artifact.path.startsWith('$canonicalFolder/')) {
-      if (await artifact.exists()) await artifact.delete();
+    if (await artifact.exists() &&
+        await FileSystemEntity.type(artifact.path, followLinks: false) == FileSystemEntityType.file) {
+      final resolved = await artifact.resolveSymbolicLinks();
+      if (p.isWithin(canonicalFolder, resolved) &&
+          p.equals(p.dirname(resolved), canonicalFolder) &&
+          p.basename(resolved).startsWith('${report.id}_')) {
+        await artifact.delete();
+      }
     }
     _projects.removeWhere((item) => item.id == report.id);
     _activeId = _projects.isEmpty ? null : _projects.first.id;
