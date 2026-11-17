@@ -63,17 +63,9 @@ try {
             throw "Unexpected APK signing certificate: $($apk.Name)"
         }
     }
-    # AAB is JAR-signed. Check its signer certificate independently.
-    $jarInfo = @(& keytool -printcert -jarfile $bundle.FullName 2>&1)
-    if ($LASTEXITCODE -ne 0) { throw 'AAB certificate inspection failed.' }
-    $bundleCerts = @($jarInfo | ForEach-Object {
-        if ("$_" -match '^\s*SHA256:\s*([0-9a-fA-F:]+)\s*$') {
-            $Matches[1].Replace(':','').ToLowerInvariant()
-        }
-    })
-    if (-not ($bundleCerts -contains $expected)) { throw 'AAB expected certificate not observed.' }
-    & jarsigner -verify $bundle.FullName
-    if ($LASTEXITCODE -ne 0) { throw 'AAB JAR verification failed.' }
+    # Read every non-signature bundle payload and validate its leaf signer.
+    & java (Join-Path $root 'tools/VerifyBundleSigners.java') $bundle.FullName $expected
+    if ($LASTEXITCODE -ne 0) { throw 'AAB payload/signing certificate verification failed.' }
     $dest = Join-Path $parent ('droidre-owner-release-' + [guid]::NewGuid().ToString('N'))
     New-Item -ItemType Directory -Path $dest | Out-Null
     foreach ($artifact in @($apks) + @($bundle)) {

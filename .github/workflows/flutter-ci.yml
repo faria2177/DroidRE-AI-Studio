@@ -20,6 +20,8 @@ jobs:
         with:
           distribution: temurin
           java-version: '17'
+      - name: Verify bundle signer fixtures
+        run: bash tools/test-bundle-signers.sh
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
         with:

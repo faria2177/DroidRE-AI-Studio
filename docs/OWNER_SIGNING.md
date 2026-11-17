@@ -26,3 +26,9 @@ The AAB check is not full Play Store acceptance or certificate trust
 validation. Owner key backup, real signed-build verification and installation
 tests are required before production distribution. Never commit or send the
 keystore/password. Windows Authenticode signing remains separate.
+
+The bundle verifier reads each non-signature JAR payload, requires exactly one
+signer with the expected leaf certificate, rejects unsigned additions, mismatches
+and duplicate entry names, and requires the basic bundle members. Synthetic signed,
+unsigned-addition and wrong-certificate fixtures are exercised by the CI test.
+This verifies signed payloads, not Android bundle semantic validity or trust.
