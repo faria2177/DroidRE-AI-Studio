@@ -13,6 +13,7 @@ import 'binary_explorer_tabs.dart';
 import 'resource_explorer_tab.dart';
 import 'recovered_folder_browser.dart';
 import 'apk_asset_editor_screen.dart';
+import 'apk_security_screen.dart';
 
 class StudioShell extends StatefulWidget {
   const StudioShell({super.key, required this.controller});
@@ -1181,8 +1182,6 @@ class _ToolsScreenState extends State<ToolsScreen> {
     const planned = <(IconData, String, String)>[
       (Icons.account_tree_outlined, 'Smali editor', 'Native engine phase'),
       (Icons.computer, 'Full multi-architecture ELF disassembler', 'Native engine phase'),
-      (Icons.compare_arrows, 'Version diff', 'Planned'),
-      (Icons.fact_check_outlined, 'Security audit', 'Planned'),
       (Icons.draw_outlined, 'On-device signing / full rebuild', 'Authorized edit phase'),
       (Icons.smart_toy_outlined, 'Local AI', 'Optional model phase'),
     ];
@@ -1222,6 +1221,17 @@ class _ToolsScreenState extends State<ToolsScreen> {
             MaterialPageRoute<void>(builder: (_) => ApkAssetEditorScreen(report: widget.report!)),
           ),
         )),
+        const SizedBox(height: 12),
+        for (final comparison in [false, true])
+          Card(child: ListTile(
+            leading: Icon(comparison ? Icons.compare_arrows : Icons.fact_check_outlined),
+            title: Text(comparison ? 'APK Version Diff' : 'APK Security Review'),
+            subtitle: Text(comparison ? 'Compare imported APK member hashes' : 'Permissions and unverified signature structure'),
+            onTap: widget.report == null || !widget.report!.fileName.toLowerCase().endsWith('.apk')
+                ? null : () => Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) =>
+                    ApkSecurityScreen(active: widget.report!, projects: widget.controller.projects,
+                        comparison: comparison))),
+          )),
         const SizedBox(height: 12),
         Text('Source Recovery — paged export',
             style: Theme.of(context).textTheme.titleMedium),
