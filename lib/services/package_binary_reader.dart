@@ -1,4 +1,5 @@
 import 'dart:typed_data';
+import 'dart:io';
 
 import 'package:archive/archive_io.dart';
 
@@ -11,9 +12,14 @@ class PackageBinaryReader {
     required String entryName,
     required int maxBytes,
   }) {
-    if (entryName.startsWith('/') ||
-        entryName.replaceAll('\\', '/').split('/').contains('..')) {
+    if (entryName.isEmpty || entryName.length > 1024 || entryName.contains('\\') ||
+        entryName.contains(':') || entryName.contains('\u0000') ||
+        entryName.split('/').any((s) => s.isEmpty || s == '.' || s == '..')) {
       throw const FormatException('Unsafe ZIP entry path');
+    }
+    final length = File(apkPath).lengthSync();
+    if (length < 22 || length > 1024 * 1024 * 1024 || maxBytes < 1 || maxBytes > 128 * 1024 * 1024) {
+      throw const FormatException('Archive or requested member limit exceeded');
     }
     final stream = InputFileStream(apkPath);
     try {

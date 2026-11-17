@@ -101,21 +101,9 @@ class ProjectContextSearch {
           _query(query);
         }
         final base = await Directory(root).resolveSymbolicLinks();
-        final paths = <String>[];
-        var visited = 0;
-        var partial = false;
-        await for (final e in Directory(base).list(recursive: true, followLinks: false)) {
-          if (++visited > maxEntries) {
-            partial = true;
-            break;
-          }
-          if (e is File) {
-            final relative = p.relative(e.path, from: base).replaceAll('\\', '/');
-            if (eligible(relative)) {
-              paths.add(relative);
-            }
-          }
-        }
+        final listing = await ProjectWorkspaceService.listBounded(base, entryLimit: maxEntries);
+        final paths = List<String>.of(listing.paths);
+        final partial = listing.partial;
         return _scan(paths, query, partial, (relative) async {
           final file = File(p.joinAll([base, ...relative.split('/')]));
           if (await FileSystemEntity.type(file.path, followLinks: false) !=

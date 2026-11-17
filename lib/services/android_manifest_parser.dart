@@ -9,15 +9,17 @@ class AndroidManifestParser {
   const AndroidManifestParser._();
 
   static ManifestInfo parse(Uint8List bytes) {
-    if (bytes.isEmpty) return const ManifestInfo();
+    if (bytes.isEmpty || bytes.length > 4 * 1024 * 1024) {
+      return const ManifestInfo();
+    }
     final initial = utf8.decode(
       bytes.sublist(0, bytes.length < 96 ? bytes.length : 96),
       allowMalformed: true,
     );
-    if (initial.trimLeft().startsWith('<')) {
-      return _parseText(utf8.decode(bytes, allowMalformed: true));
-    }
     try {
+      if (initial.trimLeft().startsWith('<')) {
+        return _parseText(utf8.decode(bytes));
+      }
       return _parseBinary(bytes);
     } on FormatException {
       return const ManifestInfo();
@@ -33,6 +35,9 @@ class AndroidManifestParser {
     }
 
     final manifestTag = RegExp(r'<manifest\b[^>]*>').firstMatch(xml)?.group(0) ?? '';
+    if (manifestTag.isEmpty || attribute(manifestTag, 'package').isEmpty) {
+      return const ManifestInfo();
+    }
     final sdkTag = RegExp(r'<uses-sdk\b[^>]*>').firstMatch(xml)?.group(0) ?? '';
     List<String> names(String tag) => RegExp('<$tag\\b[^>]*>')
         .allMatches(xml)
@@ -74,26 +79,35 @@ class AndroidManifestParser {
     final providers = <String>[];
     var sawManifest = false;
     var cursor = _u16(data, 2);
+    if (cursor < 8 || cursor > xmlSize) {
+      throw const FormatException('Invalid XML header length');
+    }
     var chunks = 0;
-    while (cursor + 8 <= data.length && chunks++ < 100000) {
+    var decodedAttributes = 0;
+    while (cursor + 8 <= xmlSize && chunks++ < 100000) {
       final chunkType = _u16(data, cursor);
       final headerSize = _u16(data, cursor + 2);
       final chunkSize = _u32(data, cursor + 4);
       if (headerSize < 8 ||
           chunkSize < headerSize ||
-          cursor + chunkSize > data.length) {
+          cursor + chunkSize > xmlSize) {
         throw const FormatException('Invalid binary XML chunk');
       }
       if (chunkType == 0x0001) {
         strings
           ..clear()
           ..addAll(_readStringPool(data, cursor, chunkSize));
-      } else if (chunkType == 0x0102 && cursor + 36 <= data.length) {
+      } else if (chunkType == 0x0102) {
+        if (headerSize < 16 || chunkSize < 36) {
+          throw const FormatException('Truncated XML start element');
+        }
         final tag = _fromPool(strings, _u32(data, cursor + 20));
         final attributeStart = _u16(data, cursor + 24);
         final attributeSize = _u16(data, cursor + 26);
         final count = _u16(data, cursor + 28);
-        if (attributeSize < 20 || count > 10000) {
+        decodedAttributes += count;
+        if (attributeStart < 20 || attributeSize < 20 || count > 10000 ||
+            decodedAttributes > 100000) {
           throw const FormatException('Invalid attribute list');
         }
         final attrs = <String, String>{};
@@ -112,9 +126,22 @@ class AndroidManifestParser {
               : _typedValue(strings, type, typedData);
           attrs[name] = value;
         }
-        if (tag == 'manifest' || tag == 'uses-sdk') {
-          metadata.addAll(attrs);
-          if (tag == 'manifest') sawManifest = true;
+        if (tag == 'manifest') {
+          if (sawManifest) {
+            throw const FormatException('Duplicate manifest element');
+          }
+          sawManifest = true;
+          for (final key in ['package', 'versionCode', 'versionCodeMajor', 'versionName', 'split']) {
+            if (attrs.containsKey(key)) {
+              metadata[key] = attrs[key]!;
+            }
+          }
+        } else if (tag == 'uses-sdk') {
+          for (final key in ['minSdkVersion', 'targetSdkVersion']) {
+            if (attrs.containsKey(key)) {
+              metadata[key] = attrs[key]!;
+            }
+          }
         } else {
           final name = attrs['name'];
           if (name != null && name.isNotEmpty) {
@@ -142,7 +169,9 @@ class AndroidManifestParser {
       }
       cursor += chunkSize;
     }
-    if (!sawManifest) throw const FormatException('Manifest root not found');
+    if (cursor != xmlSize || !sawManifest || (metadata['package'] ?? '').isEmpty) {
+      throw const FormatException('Incomplete or missing manifest root');
+    }
     return ManifestInfo(
       packageName: metadata['package'] ?? '',
       versionCode: metadata['versionCode'] ?? '',
@@ -166,18 +195,31 @@ class AndroidManifestParser {
     int chunkSize,
   ) {
     if (chunkSize < 28) throw const FormatException('Small string pool');
+    final header = _u16(bytes, start + 2);
     final count = _u32(bytes, start + 8);
+    final styleCount = _u32(bytes, start + 12);
     final flags = _u32(bytes, start + 16);
     final stringsStart = _u32(bytes, start + 20);
-    if (count > 100000 || 28 + count * 4 > chunkSize) {
+    final stylesStart = _u32(bytes, start + 24);
+    final poolEnd = stylesStart == 0 ? chunkSize : stylesStart;
+    if (header < 28 || header > chunkSize || count > 100000 || styleCount > 100000 ||
+        header + (count + styleCount) * 4 > stringsStart || stringsStart > poolEnd ||
+        poolEnd > chunkSize) {
       throw const FormatException('Invalid string count');
     }
     final isUtf8 = flags & 0x100 != 0;
     final results = <String>[];
+    final cache = <int, String>{};
+    var decodedUnits = 0;
     for (var i = 0; i < count; i++) {
-      final offset = _u32(bytes, start + 28 + i * 4);
+      final offset = _u32(bytes, start + header + i * 4);
+      final cached = cache[offset];
+      if (cached != null) {
+        results.add(cached);
+        continue;
+      }
       var position = start + stringsStart + offset;
-      if (position >= start + chunkSize) {
+      if (position >= start + poolEnd) {
         throw const FormatException('String outside pool');
       }
       if (isUtf8) {
@@ -187,19 +229,26 @@ class AndroidManifestParser {
         position += secondLength.$2;
         final byteLength = secondLength.$1;
         if (byteLength > 1048576 ||
-            position + byteLength >= start + chunkSize) {
+            position + byteLength >= start + poolEnd ||
+            bytes[position + byteLength] != 0) {
           throw const FormatException('String too large');
         }
-        results.add(utf8.decode(
-          bytes.sublist(position, position + byteLength),
-          allowMalformed: true,
-        ));
+        decodedUnits += byteLength;
+        if (decodedUnits > 8 * 1024 * 1024) {
+          throw const FormatException('XML string pool work budget exceeded');
+        }
+        results.add(utf8.decode(bytes.sublist(position, position + byteLength)));
       } else {
         final length = _utf16Length(bytes, position);
         position += length.$2;
         if (length.$1 > 524288 ||
-            position + length.$1 * 2 >= start + chunkSize) {
+            position + length.$1 * 2 + 2 > start + poolEnd ||
+            _u16(bytes, position + length.$1 * 2) != 0) {
           throw const FormatException('String too large');
+        }
+        decodedUnits += length.$1 * 2;
+        if (decodedUnits > 8 * 1024 * 1024) {
+          throw const FormatException('XML string pool work budget exceeded');
         }
         final units = List<int>.generate(
           length.$1,
@@ -207,6 +256,7 @@ class AndroidManifestParser {
         );
         results.add(String.fromCharCodes(units));
       }
+      cache[offset] = results.last;
     }
     return results;
   }

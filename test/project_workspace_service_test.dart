@@ -4,6 +4,21 @@ import 'package:droidre_ai_studio/services/project_workspace_service.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  test('generated directories do not consume traversal budget', () async {
+    final root = await Directory.systemTemp.createTemp('prune_');
+    try {
+      final build = await Directory('${root.path}/build').create();
+      for (var i = 0; i < 30; i++) {
+        await File('${build.path}/$i.java').writeAsString('generated');
+      }
+      await File('${root.path}/Main.java').writeAsString('source');
+      final result = await ProjectWorkspaceService.listBounded(root.path, entryLimit: 4);
+      expect(result.paths, ['Main.java']);
+      expect(result.partial, false);
+    } finally {
+      await root.delete(recursive: true);
+    }
+  });
   test('lists supported source paths and skips hidden build files', () async {
     final root = await Directory.systemTemp.createTemp('workspace_test_');
     try {
