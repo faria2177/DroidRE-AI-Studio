@@ -6,6 +6,53 @@ import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 
 void main() {
+  test('model discovery sends only provider credential and no prompt', () async {
+    final service = AiChatService(client: MockClient((request) async {
+      expect(request.method, 'GET');
+      expect(request.url.toString(), 'https://api.deepseek.com/models');
+      expect(request.headers['Authorization'], 'Bearer discovery-key');
+      expect(request.body, isEmpty);
+      return http.Response('{"data":[{"id":"z"},{"id":"a"},{"id":"z"},{"id":null}]}', 200);
+    }));
+    expect(await service.listModels(aiEndpoints[2], 'discovery-key'), ['a', 'z']);
+    service.close();
+  });
+
+  test('Claude catalog uses native authentication', () async {
+    final endpoint = aiEndpoints.singleWhere((e) => e.protocol == AiProtocol.anthropic);
+    final service = AiChatService(client: MockClient((request) async {
+      expect(request.url.toString(), 'https://api.anthropic.com/v1/models');
+      expect(request.headers['x-api-key'], 'claude-key');
+      expect(request.headers['anthropic-version'], '2023-06-01');
+      expect(request.headers.containsKey('Authorization'), isFalse);
+      return http.Response('{"data":[{"id":"claude-example"}],"has_more":true}', 200);
+    }));
+    expect(await service.listModels(endpoint, 'claude-key'), ['claude-example']);
+    service.close();
+  });
+
+  test('catalog errors do not trigger fallback or expose raw server body', () async {
+    var calls = 0;
+    final service = AiChatService(client: MockClient((_) async {
+      calls++;
+      return http.Response('secret error body', 429);
+    }));
+    await expectLater(service.listModels(aiEndpoints.first, 'key'),
+      throwsA(isA<HttpException>().having((e) => e.statusCode, 'status', 429)));
+    expect(calls, 1);
+    service.close();
+  });
+
+  test('rejects unknown endpoint before catalog request', () async {
+    final service = AiChatService(client: MockClient((_) async {
+      fail('Unexpected request');
+    }));
+    await expectLater(service.listModels(const AiEndpoint(
+      name: 'Unknown', url: 'https://example.com', defaultModel: ''), 'key'),
+      throwsFormatException);
+    service.close();
+  });
+
   test('parses an authorized chat completion response', () async {
     final client = MockClient((request) async {
       expect(request.headers['Authorization'], 'Bearer test-token');

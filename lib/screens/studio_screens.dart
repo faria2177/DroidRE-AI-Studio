@@ -757,8 +757,52 @@ class _AiStudioScreenState extends State<AiStudioScreen> {
     super.dispose();
   }
 
+  Future<void> _discover({bool fallback = false}) async {
+    final selected = fallback ? fallbackEndpoint : endpoint;
+    if (busy || selected == null) {
+      return;
+    }
+    final key = fallback ? fallbackKey.text : keyController.text;
+    setState(() => busy = true);
+    try {
+      final models = await service.listModels(selected, key);
+      if (!mounted) {
+        return;
+      }
+      if (models.isEmpty) {
+        setState(() => output = 'No models listed. Enter a Model ID manually.');
+        return;
+      }
+      final choice = await showDialog<String>(
+        context: context,
+        builder: (_) => _AiModelPicker(provider: selected.name, models: models),
+      );
+      if (mounted && choice != null) {
+        setState(() {
+          if (fallback) {
+            fallbackModel.text = choice;
+            fallbackConsent = false;
+          } else {
+            modelController.text = choice;
+            consentToSendCode = false;
+          }
+        });
+      }
+    } catch (error) {
+      if (mounted) {
+        setState(() => output = 'Model discovery failed: $error. You can enter an ID manually.');
+      }
+    } finally {
+      if (mounted) {
+        setState(() => busy = false);
+      }
+    }
+  }
+
   Future<void> _send() async {
-    if (busy || !consentToSendCode || (allowFallback && !fallbackConsent)) return;
+    if (busy || !consentToSendCode || (allowFallback && !fallbackConsent)) {
+      return;
+    }
     setState(() {
       busy = true;
       output = '';
@@ -771,10 +815,12 @@ class _AiStudioScreenState extends State<AiStudioScreen> {
         allowFallback: allowFallback && fallbackConsent,
         prompt: promptController.text,
       );
-      if (mounted) setState(() => output =
-          'Provider: ${response.provider}\n'
-          '${response.fallbackReason == null ? '' : 'Fallback: ${response.fallbackReason}\n'}'
-          '\n${response.text}');
+      if (mounted) {
+        setState(() => output =
+            'Provider: ${response.provider}\n'
+            '${response.fallbackReason == null ? '' : 'Fallback: ${response.fallbackReason}\n'}'
+            '\n${response.text}');
+      }
     } catch (error) {
       if (mounted) setState(() => output = 'Request failed: $error');
     } finally {
@@ -843,6 +889,11 @@ class _AiStudioScreenState extends State<AiStudioScreen> {
             prefixIcon: Icon(Icons.key),
           ),
         ),
+        OutlinedButton.icon(
+          onPressed: busy ? null : () => _discover(),
+          icon: const Icon(Icons.manage_search),
+          label: const Text('Fetch available model IDs'),
+        ),
         const SizedBox(height: 12),
         TextField(
           controller: promptController,
@@ -907,6 +958,11 @@ class _AiStudioScreenState extends State<AiStudioScreen> {
                 labelText: 'Separate fallback API key (session only)',
                 border: OutlineInputBorder())),
           ],
+          OutlinedButton.icon(
+            onPressed: busy || fallbackEndpoint == null ? null : () => _discover(fallback: true),
+            icon: const Icon(Icons.manage_search),
+            label: const Text('Fetch fallback model IDs'),
+          ),
           CheckboxListTile(
             value: fallbackConsent,
             title: Text('I allow sending this same prompt to '
@@ -941,6 +997,53 @@ class _AiStudioScreenState extends State<AiStudioScreen> {
           label: 'Session keys only · local RAG remains planned',
           icon: Icons.info_outline,
         ),
+      ],
+    );
+  }
+}
+
+class _AiModelPicker extends StatefulWidget {
+  const _AiModelPicker({required this.provider, required this.models});
+  final String provider;
+  final List<String> models;
+
+  @override
+  State<_AiModelPicker> createState() => _AiModelPickerState();
+}
+
+class _AiModelPickerState extends State<_AiModelPicker> {
+  String filter = '';
+
+  @override
+  Widget build(BuildContext context) {
+    final matches = widget.models.where((model) =>
+        model.toLowerCase().contains(filter.toLowerCase())).toList();
+    return AlertDialog(
+      title: Text('${widget.provider} models'),
+      content: SizedBox(
+        width: 560,
+        height: MediaQuery.sizeOf(context).height * 0.45,
+        child: Column(
+          children: [
+            const Text('First catalog response, at most 1,000 IDs. '
+                'Listing does not guarantee chat compatibility, access or free use.'),
+            TextField(
+              onChanged: (value) => setState(() => filter = value),
+              decoration: const InputDecoration(labelText: 'Search model ID'),
+            ),
+            Expanded(child: ListView.builder(
+              itemCount: matches.length,
+              itemBuilder: (context, index) => ListTile(
+                title: Text(matches[index]),
+                onTap: () => Navigator.pop(context, matches[index]),
+              ),
+            )),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel')),
       ],
     );
   }

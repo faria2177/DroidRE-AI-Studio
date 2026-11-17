@@ -144,6 +144,69 @@ class AiChatService {
     }
   }
 
+  /// Explicit model discovery. No prompt or code is included in this GET.
+  /// Pagination is intentionally limited to the first provider response.
+  Future<List<String>> listModels(AiEndpoint endpoint, String apiKey) async {
+    if (!aiEndpoints.contains(endpoint) ||
+        (!endpoint.local && apiKey.trim().isEmpty)) {
+      throw const FormatException('Select a supported provider and its API key');
+    }
+    final url = switch (endpoint.name) {
+      'OpenRouter' => 'https://openrouter.ai/api/v1/models',
+      'OpenAI' => 'https://api.openai.com/v1/models',
+      'DeepSeek' => 'https://api.deepseek.com/models',
+      'Groq' => 'https://api.groq.com/openai/v1/models',
+      'Google Gemini' => 'https://generativelanguage.googleapis.com/v1beta/openai/models',
+      'Anthropic Claude' => 'https://api.anthropic.com/v1/models',
+      'xAI Grok' => 'https://api.x.ai/v1/models',
+      'Mistral' => 'https://api.mistral.ai/v1/models',
+      'Ollama (local)' => 'http://localhost:11434/v1/models',
+      _ => throw const FormatException('Model catalog unavailable'),
+    };
+    final request = http.Request('GET', Uri.parse(url))
+      ..followRedirects = false
+      ..headers.addAll({
+        'Accept': 'application/json',
+        if (endpoint.protocol == AiProtocol.anthropic) ...{
+          'x-api-key': apiKey.trim(),
+          'anthropic-version': '2023-06-01',
+        } else if (!endpoint.local)
+          'Authorization': 'Bearer ${apiKey.trim()}',
+      });
+    final response = await _client.send(request)
+        .timeout(const Duration(seconds: 30));
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      await response.stream.listen((_) {}).cancel();
+      throw HttpException('Model catalog returned HTTP ${response.statusCode}',
+          statusCode: response.statusCode);
+    }
+    final bytes = <int>[];
+    await for (final chunk in response.stream.timeout(const Duration(seconds: 30))) {
+      if (chunk.length > maxBodyBytes - bytes.length) {
+        throw const FormatException('Model catalog exceeded 2 MiB');
+      }
+      bytes.addAll(chunk);
+    }
+    final data = jsonDecode(utf8.decode(bytes));
+    if (data is! Map || data['data'] is! List) {
+      throw const FormatException('Unsupported model catalog response');
+    }
+    final ids = <String>{};
+    for (final item in (data['data'] as List).take(10000)) {
+      if (item is Map && item['id'] is String) {
+        final id = (item['id'] as String).trim();
+        if (id.isNotEmpty && id.length <= 256) {
+          ids.add(id);
+        }
+      }
+      if (ids.length >= 1000) {
+        break;
+      }
+    }
+    final sorted = ids.toList()..sort();
+    return List.unmodifiable(sorted);
+  }
+
   Future<String> complete({
     required AiEndpoint endpoint,
     required String model,

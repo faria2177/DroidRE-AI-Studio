@@ -23,7 +23,7 @@ An **Android-first Flutter project** for offline APK inspection and optional AI 
 - AI method prompts include resolved references and request evidence by instruction offset, behavior, risks, uncertainties and next targets; the user can review and edit everything before sending.
 - Decode common fields from Android binary XML or plain XML manifests, including package/version/SDK/permission/component names.
 - Projects are stored in app-private local storage and can be reopened.
-- Opt-in AI chat with your own OpenRouter, OpenAI, DeepSeek or Groq API key; only text that you explicitly enter leaves the device.
+- Opt-in AI chat with eight cloud providers and desktop Ollama; explicit bounded model discovery and one optional fallback with separate consent.
 - Google account Settings accepts a Web OAuth client ID directly on the device and supports interactive sign-in/session restore **when** a matching Google Cloud Android OAuth registration and signing certificate fingerprint are configured. No Gmail inbox permission is requested.
 - Google account button and OAuth integration path. The button requires owner-provided OAuth configuration.
 - CI, unit tests and Android debug APK workflow.

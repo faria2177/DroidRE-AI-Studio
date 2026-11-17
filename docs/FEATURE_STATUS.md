@@ -24,7 +24,7 @@ Do not mistake a visible tool card for a completed reverse-engineering engine.
 | Project persistence | Implemented | Local copied artifacts and JSON index |
 | Google account button | Requires Google OAuth registration | Configurable Web Client ID in Settings, native account selection/restore; package name + APK signing SHA must be registered, backend auth verification is future work |
 | Multi-AI providers | Nine request adapters | Eight cloud providers and desktop Ollama loopback; user-supplied models and session keys; live access unverified |
-| AI model selection / fallback | Manual model ID and opt-in single fallback | Explicit separate consent and key; only selected transient HTTP statuses; live model catalog planned |
+| AI model selection / fallback | Manual ID, bounded live model catalog and opt-in single fallback | Explicit separate consent and key; only selected transient HTTP statuses; catalog GET contains no prompt |
 | Security audit / version diff | Planned | UI links explicitly labeled roadmap |
 | APK asset edit/repack | Bounded unsigned export | One existing UTF-8 asset, retained file payload hash checks, stale signature files removed. Windows SDK signing helper provided; on-device signing and Smali rebuild remain planned. |
 | Local LLM / optional worker | Planned | Separate opt-in architecture |

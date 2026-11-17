@@ -29,5 +29,13 @@ https://docs.mistral.ai/api/endpoint/chat ,
 https://docs.ollama.com/openai .
 
 Mock HTTP tests verify adapter request/response shape, not live provider
-availability. Live catalog discovery, more providers, multi-step agents,
+availability. More providers, multi-step agents,
 cost budgets, project RAG and Android local inference remain future work.
+
+## Model catalog
+
+Fetch available model IDs explicitly for the primary or fallback provider.
+Only a GET request with that provider's session credential is sent; no prompt.
+First response only, bounded to 2 MiB and 1,000 IDs; manual entry remains
+available. Model listings do not guarantee chat compatibility, access or free
+use. Catalog requests never trigger fallback.
