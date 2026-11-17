@@ -44,10 +44,12 @@ class StudioShell extends StatefulWidget {
 class _StudioShellState extends State<StudioShell> {
   int _tab = 0;
   String _aiDraft = '';
+  int _aiDraftRevision = 0;
 
   void _analyzeSelectedCode(String draft) {
     setState(() {
       _aiDraft = draft;
+      _aiDraftRevision++;
       _tab = 3;
     });
   }
@@ -104,8 +106,9 @@ class _StudioShellState extends State<StudioShell> {
             onExplainCode: _analyzeSelectedCode,
           ),
           AiStudioScreen(
-            key: ValueKey(_aiDraft),
+            key: const ValueKey('ai-studio-session'),
             initialPrompt: _aiDraft,
+            draftRevision: _aiDraftRevision,
             report: widget.controller.active,
           ),
           ToolsScreen(
@@ -224,7 +227,13 @@ class _StudioShellState extends State<StudioShell> {
                           ),
                         ],
                       ),
-                    Expanded(child: tabs[_tab]),
+                    Expanded(child: Stack(fit: StackFit.expand, children: [
+                      // Keep only AI state alive across navigation; other screens
+                      // retain their existing lazy lifecycle and memory bounds.
+                      Offstage(offstage: _tab != 3, child: TickerMode(
+                        enabled: _tab == 3, child: tabs[3])),
+                      if (_tab != 3) tabs[_tab],
+                    ])),
                   ],
                 ),
               ),
@@ -764,9 +773,12 @@ class _SectionList extends StatelessWidget {
 }
 
 class AiStudioScreen extends StatefulWidget {
-  const AiStudioScreen({super.key, this.initialPrompt = '', this.report});
+  const AiStudioScreen({super.key, this.initialPrompt = '', this.report,
+    this.draftRevision = 0, this.chatService});
 
   final String initialPrompt;
+  final int draftRevision;
+  final AiChatService? chatService;
   final ApkReport? report;
 
   @override
@@ -777,7 +789,7 @@ class _AiStudioScreenState extends State<AiStudioScreen> {
   final keyController = TextEditingController();
   final modelController = TextEditingController(text: aiEndpoints.first.defaultModel);
   late final TextEditingController promptController;
-  final service = AiChatService();
+  late final service = widget.chatService ?? AiChatService();
   final _sessionKeys = <AiEndpoint, String>{};
   final _sessionModels = <AiEndpoint, String>{};
   bool _showKey = false;
@@ -808,6 +820,18 @@ class _AiStudioScreenState extends State<AiStudioScreen> {
   void initState() {
     super.initState();
     promptController = TextEditingController(text: widget.initialPrompt);
+  }
+
+  @override
+  void didUpdateWidget(covariant AiStudioScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.draftRevision != widget.draftRevision ||
+        oldWidget.initialPrompt != widget.initialPrompt) {
+      promptController.text = widget.initialPrompt;
+      consentToSendCode = false;
+      fallbackConsent = false;
+      output = '';
+    }
   }
 
   @override
@@ -954,6 +978,7 @@ class _AiStudioScreenState extends State<AiStudioScreen> {
     if (busy || !consentToSendCode || (allowFallback && !fallbackConsent)) {
       return;
     }
+    final revision = widget.draftRevision;
     setState(() {
       busy = true;
       output = '';
@@ -966,14 +991,16 @@ class _AiStudioScreenState extends State<AiStudioScreen> {
         allowFallback: allowFallback && fallbackConsent,
         prompt: promptController.text,
       );
-      if (mounted) {
+      if (mounted && revision == widget.draftRevision) {
         setState(() => output =
             'Provider: ${response.provider}\n'
             '${response.fallbackReason == null ? '' : 'Fallback: ${response.fallbackReason}\n'}'
             '\n${response.text}');
       }
     } catch (error) {
-      if (mounted) setState(() => output = 'Request failed: $error');
+      if (mounted && revision == widget.draftRevision) {
+        setState(() => output = 'Request failed: $error');
+      }
     } finally {
       if (mounted) setState(() => busy = false);
     }
@@ -1031,6 +1058,16 @@ class _AiStudioScreenState extends State<AiStudioScreen> {
         ),
         const SizedBox(height: 10),
         Text(endpoint.description),
+        TextButton(onPressed: busy ? null : () => setState(() {
+          _sessionKeys.clear();
+          _sessionModels.clear();
+          keyController.clear();
+          fallbackKey.clear();
+          consentToSendCode = false;
+          fallbackConsent = false;
+          _showKey = false;
+          output = 'Session API keys cleared.';
+        }), child: const Text('Clear session API keys')),
         const SizedBox(height: 12),
         TextField(
           controller: modelController,
