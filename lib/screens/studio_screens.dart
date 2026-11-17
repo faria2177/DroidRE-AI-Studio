@@ -18,6 +18,7 @@ import 'apktool_workspace_screen.dart';
 import 'jadx_recovery_screen.dart';
 import 'project_context_dialog.dart';
 import 'semantic_context_dialog.dart';
+import 'analysis_agent_screen.dart';
 import 'adb_device_screen.dart';
 import 'framework_binary_screen.dart';
 import 'universal_binary_screen.dart';
@@ -845,6 +846,28 @@ class _AiStudioScreenState extends State<AiStudioScreen> {
     }
   }
 
+  Future<void> _openAgent() async {
+    if (busy) {
+      return;
+    }
+    final selection = AiSelection(endpoint, modelController.text.trim(), keyController.text);
+    if (selection.model.isEmpty || (!selection.endpoint.local && selection.apiKey.trim().isEmpty)) {
+      setState(() => output = 'Choose a provider, model and API key (if required) before starting research.');
+      return;
+    }
+    String? root = widget.report?.recoveredFolderPath;
+    final uri = widget.report?.recoveredFolderUri;
+    if (uri == null && Platform.isWindows) {
+      root = await FilePicker.platform.getDirectoryPath(
+        dialogTitle: 'Choose authorized source folder for research');
+    }
+    if (!mounted || (root == null && uri == null)) {
+      return;
+    }
+    await Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) =>
+      AnalysisAgentScreen(selection: selection, root: root, uri: uri)));
+  }
+
   Future<void> _discover({bool fallback = false}) async {
     final selected = fallback ? fallbackEndpoint : endpoint;
     if (busy || selected == null) {
@@ -991,6 +1014,10 @@ class _AiStudioScreenState extends State<AiStudioScreen> {
           icon: const Icon(Icons.manage_search),
           label: const Text('Fetch available model IDs'),
         ),
+        if (Platform.isWindows || widget.report?.recoveredFolderPath != null ||
+            widget.report?.recoveredFolderUri != null)
+          OutlinedButton.icon(onPressed: busy ? null : _openAgent,
+            icon: const Icon(Icons.account_tree_outlined), label: const Text('AI Analysis Agent (reviewed research)')),
         const SizedBox(height: 12),
         TextField(
           controller: promptController,
@@ -1091,7 +1118,7 @@ class _AiStudioScreenState extends State<AiStudioScreen> {
           ),
         const SizedBox(height: 14),
         const StatusPill(
-          label: 'Session keys only · local RAG remains planned',
+          label: 'Session keys only · reviewed local retrieval and analysis',
           icon: Icons.info_outline,
         ),
       ],
@@ -1247,7 +1274,7 @@ class _ToolsScreenState extends State<ToolsScreen> {
     const planned = <(IconData, String, String)>[
       (Icons.computer, 'Full multi-architecture ELF disassembler', 'Native engine phase'),
       (Icons.draw_outlined, 'On-device signing / full rebuild', 'Authorized edit phase'),
-      (Icons.smart_toy_outlined, 'Local AI', 'Optional model phase'),
+      (Icons.smart_toy_outlined, 'Expanded AI runtime integration', 'Optional external model validation'),
     ];
     return ListView(
       padding: const EdgeInsets.all(18),
