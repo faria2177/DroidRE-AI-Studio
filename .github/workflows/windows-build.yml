@@ -1,0 +1,43 @@
+name: Windows Desktop and Installer
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  windows:
+    runs-on: windows-2022
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: '3.47.4'
+          cache: true
+      - name: Generate Windows runner
+        run: flutter create . --platforms=windows --org com.jahid --project-name droidre_ai_studio
+      - name: Fetch dependencies
+        run: flutter pub get
+      - name: Format source
+        run: dart format lib test
+      - name: Analyze
+        run: flutter analyze
+      - name: Test Windows filesystem and application
+        run: flutter test
+      - name: Build x64 release
+        run: flutter build windows --release
+      - name: Package portable ZIP and installer
+        shell: pwsh
+        run: ./tools/package-windows.ps1
+      - name: Upload Windows distribution
+        uses: actions/upload-artifact@v4
+        with:
+          name: droidre-windows-x64
+          path: |
+            dist/DroidRE-AI-Studio-x64-Setup.exe
+            dist/DroidRE-AI-Studio-x64-Portable.zip
+            dist/SHA256SUMS.txt
+          if-no-files-found: error
+          retention-days: 14
