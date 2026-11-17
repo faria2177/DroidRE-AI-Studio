@@ -36,6 +36,15 @@ ZIP export accepts a zero-based DEX:class:method cursor and reports a next
 cursor for continuation at bounded export limits. Automatic folder recovery
 still exports the first window only; malformed or oversized inputs may be skipped.
 
+## Normal-flow basic blocks
+
+Method disassembly and recovered Dalvik previews now include bounded basic
+blocks, conditional/goto/switch successors, normal-flow reachability and
+backward-edge hints. Payload data is excluded from execution. The graph
+caps switch edges at 4,096, displays up to 128 blocks and 20 edges per
+block, and marks incomplete or invalid targets. Exception edges, type
+verification and semantic loop detection are not included.
+
 ## Known limitations
 
 - The source recovery ZIP produces non-compilable/non-assemblable text previews only. See `docs/SOURCE_RECOVERY.md` for bounds, privacy, and omitted source types.

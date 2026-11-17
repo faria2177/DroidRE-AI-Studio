@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart';
 
 import 'dalvik_disassembler.dart';
 import 'dalvik_flow_inspector.dart';
+import 'dalvik_control_flow_graph.dart';
 import 'dalvik_pseudocode.dart';
 import 'dex_symbol_index.dart';
 import 'package_binary_reader.dart';
@@ -285,6 +286,7 @@ class DexInspector {
       }
     }
     final flow = DalvikFlowInspector.inspect(units, decoded);
+    final graph = DalvikControlFlowGraph.build(units, decoded);
     final flowLines = <String>[
       if (flow.entries.isNotEmpty)
         '    # Switch and array payload references (best effort):',
@@ -292,6 +294,7 @@ class DexInspector {
       if (flow.warnings.isNotEmpty)
         '    # Control-flow diagnostics (not a full verifier):',
       for (final warning in flow.warnings) '    # WARNING: $warning',
+      for (final line in graph.describe()) '    # $line',
     ];
     final flowAppendix = flowLines.isEmpty ? '' : '\n${flowLines.join('\n')}';
     final heading = method.smaliPreview.split('\n').first;

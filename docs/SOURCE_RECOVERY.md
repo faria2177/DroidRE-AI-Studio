@@ -116,6 +116,11 @@ Split APK containers (APKS/APKM/XAPK) and AAB packages are not fully
 reconstructed by this milestone; their nested DEX and resource content
 may not be decoded.
 
+Dalvik text previews also include a bounded normal-flow basic block and
+successor summary. Switch payloads are non-executable data; exception
+handlers remain separately recorded in method semantics and are not part
+of normal-flow reachability. A backward edge is a hint, not proof of a loop.
+
 ## Continue large APK recovery
 
 Under Tools, the Source Preview ZIP export accepts a zero-based
