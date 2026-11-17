@@ -370,11 +370,11 @@ class Hermes76Inspector {
         pseudo = '${args[0]} = ${args[1]} $operator ${args[2]}';
       }
       result.add({'offset': pos - start, 'opcode': opcode, 'mnemonic': name,
-        'operands': args, if (pseudo != null) 'registerPseudocode': pseudo});
+        'operands': args, 'registerPseudocode': ?pseudo});
       // SwitchImm involves an out-of-line jump table; don't guess targets.
     }
     return {'instructions': result, 'partial': warning != null || at < end,
-      if (warning != null) 'warning': warning,
+      'warning': ?warning,
       'scope': 'Linear register hints, not reconstructed JavaScript control flow.'};
   }
 }

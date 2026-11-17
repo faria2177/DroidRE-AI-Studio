@@ -108,7 +108,7 @@ class FrameworkBinaryInspector {
         }
       }
       return {...result, 'kind': 'hermes-bytecode', 'version': u32(8),
-        if (disassembly != null) 'version76Preview': disassembly,
+        'version76Preview': ?disassembly,
         'declaredBytes': declared, 'sourceHashHeader': _hex(bytes.sublist(12, 32)),
         'globalCodeIndex': globalIndex, 'functionCountHeader': count,
         'legacyHbctoolCompatibleVersion': FrameworkVersionMapping.hermesLegacyVersions.contains(u32(8)),

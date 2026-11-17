@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.9.0+10 — development preview
+
+Dart snapshot hash comparison; Hermes v76 bounded opcode preview; classic IL2CPP 27/29 definition mapping; Ghidra block/edge evidence and DOT; split manifest preflight; bounded live Logcat; draft diff; AI report export and refinement; tool path/version manager; pruned workspace search; manifest/member hardening; Ghidra synthetic smoke workflow and regression tests. Not a production release.
+
 ## 0.8.0+9 — development preview
 
 Expanded native LLVM preview, ARM64 XREF, Flutter snapshot and asset evidence,

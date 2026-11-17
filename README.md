@@ -2,7 +2,7 @@
 
 An **Android-first Flutter project** for offline APK inspection and optional AI code explanations.
 
-**Current version:** 0.8.0 development preview — Android/Windows local reverse-engineering and optional AI. Bounded analysis and external recovery adapters; not a full original-source reconstruction product. See [Release readiness](docs/RELEASE_READINESS.md).
+**Current version:** 0.9.0 development preview — local Android/Windows reverse-engineering tools and optional AI. Version-specific evidence, external tools and bounded recovery; not a complete original-source recovery product. See [Release readiness](docs/RELEASE_READINESS.md).
 
 ## What works today
 
@@ -87,7 +87,7 @@ locations, and privacy details.
 
 ## Android development build
 
-The latest source-recovery changes are packaged as development version **0.8.0+9**.
+The latest source-recovery changes are packaged as development version **0.9.0+10**.
 GitHub Actions **Flutter CI and Debug APK** runs `flutter analyze`, `flutter test`,
 and then builds an Android debug APK from `main`. The artifact is signed
 with the development debug key; it is for testing, not Play Store release.
@@ -172,3 +172,9 @@ Tools → Smali & Resource Workspace: decode, edit existing Smali/XML and rebuil
 - [Optional Ghidra](docs/GHIDRA_RECOVERY.md) · [Dart hash evidence](docs/DART_VERSION_EVIDENCE.md) · [Framework/split export](docs/FRAMEWORK_AND_SPLIT_EXPORT.md)
 - [ADB runtime monitor](docs/ADB_RUNTIME_MONITOR.md) · [Large binary viewer](docs/LARGE_BINARY.md)
 - [User manual](docs/USER_MANUAL.md) · [Release gates and remaining work](docs/RELEASE_READINESS.md)
+
+## Phases 31–42 preview
+
+[Framework version mapping](docs/FRAMEWORK_VERSION_MAPPING.md) · [Hermes 76](docs/HERMES76.md) · [Unity metadata definitions](docs/IL2CPP_DEFINITION_MAPPING.md) · [Ghidra headless / CFG](docs/GHIDRA_HEADLESS.md) · [Split set preflight](docs/SPLIT_SET_PREFLIGHT.md) · [Live Logcat, draft diff and reviewed reports](docs/PHASES_36_38.md) · [External tool manager](docs/EXTERNAL_TOOL_MANAGER.md) · [Performance and security hardening](docs/PERFORMANCE_SECURITY_HARDENING.md).
+
+The Ghidra synthetic fixture workflow tests the pinned official release with a compiled sample, not a Windows device install. Hermes 76 opcode data is distributed under the MIT license in third_party/licenses/hbctool-MIT.txt. Review the remaining gates before production signing or public release.

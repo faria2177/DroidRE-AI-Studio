@@ -1,4 +1,4 @@
-# DroidRE AI Studio — 0.8.0 preview user manual
+# DroidRE AI Studio — 0.9.0 preview user manual
 
 ## Install
 
@@ -85,3 +85,12 @@ or isolated VM. See RELEASE_READINESS.md; this is a development preview.
 
 For an owner-signed APK/AAB build on Windows, follow OWNER_SIGNING.md.
 The normal downloaded development artifacts still use debug signing.
+
+## 0.9.0 additions
+
+Flutter AOT → Compare SDK hash (reference from a trusted matching SDK).
+Framework Binary Inspector → HBC 76 version preview and classic IL2CPP 27/29 definition mapping for supported inputs; unsupported layouts report unresolved.
+Tools → Split APK Set Preflight selects local APKs and compares manifest identity; no merge or signature verification.
+Tools → Ghidra Native Decompiler uses an installed compatible JDK/Ghidra. Expanded block edges and Graphviz DOT available for sampled functions.
+Workspace → Compare original and draft. AI Agent → Export evidence report or refine research. ADB → Live Logcat for 20 seconds with stop. Universal Tool Manager → detect candidate paths and check version after explicit trust.
+See module-specific documents for limits and remaining release gates.

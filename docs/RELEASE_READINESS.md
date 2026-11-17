@@ -1,4 +1,4 @@
-# Phase 30 — 0.8.0 development preview readiness
+# Phase 42 — 0.9.0 development preview readiness
 
 Do not label this version 1.0 production-ready. Phases are development workstreams,
 not a percentage estimate of verified functionality.
@@ -36,3 +36,22 @@ original or buildable. No secret values belong in GitHub or analysis prompts.
 An explicit owner signing Gradle configuration and local verified-artifact
 helper now exist (OWNER_SIGNING.md). No actual owner credential or signed
 device build has been provided or verified; the gate stays open.
+
+## Phases 31–42 status (bounded implementation)
+
+| Phase | Delivered in preview | Remaining |
+| --- | --- | --- |
+| 31 | Compare candidate Dart snapshot hash with trusted reference | Version catalog, exact VM layout, object pool and Dart class/function reconstruction |
+| 32 | HBC 76 function/header/operand preview and simple register pseudocode | Other HBC versions, overflow headers, full JS CFG and real fixtures |
+| 33 | Literal index and classic IL2CPP 27/29 type/method metadata mapping | Actual Unity fixtures, native address registration and source/body recovery |
+| 34 | Headless Ghidra block edges, DOT and pinned Linux synthetic smoke | Windows tool/runtime validation, interactive full CFG |
+| 35 | Split APK manifest identity checks | Cryptographic split signer/dependency checks, merge/rebuild, in-app signing |
+| 36 | Bounded foreground live Logcat | Physical device tests, debugger and broader runtime inspection |
+| 37 | Original/draft line diff | Language server, autocomplete, persistent code versions |
+| 38 | Reviewed AI report export and refine/research loop | Persistent context and semantic report verification / provider tests |
+| 39 | Common tool path detection, version commands and install links | Runtime compatibility matrix, automatic configuration, actual local tool checks |
+| 40 | Pruned bounded directory traversal | Large project indexing, RAM/latency measurements and benchmark |
+| 41 | Manifest/member parser hardening and deterministic malformed-header tests | Full security audit, broader fuzzing and real device QA |
+| 42 | 0.9.0 preview version, documentation and same-commit build workflows | Verified production credentials, full integration/device validation and signed release |
+
+No production tag has been created. The Android workflow remains test-signed and Windows setup remains unsigned. Actual owner signing requires local keys and verification using the existing owner signing helper. The pinned Ghidra synthetic integration workflow is independent of Android and Flutter packaging.

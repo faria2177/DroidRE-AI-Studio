@@ -1,7 +1,7 @@
 name: droidre_ai_studio
 description: Offline-first Android APK inspection studio with opt-in AI.
 publish_to: none
-version: 0.8.0+9
+version: 0.9.0+10
 
 environment:
   sdk: ">=3.8.0 <4.0.0"
@@ -26,4 +26,5 @@ flutter:
   uses-material-design: true
   assets:
     - assets/ghidra/DroidREHeadlessExport.java
+    - third_party/licenses/hbctool-MIT.txt
     - assets/branding/droidre_logo.png
