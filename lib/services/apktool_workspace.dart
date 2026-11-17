@@ -58,10 +58,11 @@ class ApktoolWorkspace {
         .listen(append);
     final stderr = process.stderr.transform(const Utf8Decoder(allowMalformed: true))
         .listen(append);
+    final drained = Future.wait([stdout.asFuture<void>(), stderr.asFuture<void>()]);
     try {
-      final code = await process.exitCode.timeout(const Duration(minutes: 10));
-      await Future.wait([stdout.asFuture<void>(), stderr.asFuture<void>()])
-          .timeout(const Duration(seconds: 5));
+      final results = await Future.wait<Object?>([process.exitCode, drained])
+          .timeout(const Duration(minutes: 10));
+      final code = results.first as int;
       if (code != 0) {
         throw ProcessException(javaPath, const [], 'Apktool exit $code\n$log', code);
       }

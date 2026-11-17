@@ -158,3 +158,7 @@ Eight cloud providers plus desktop Ollama loopback; explicit consent for a singl
 ## Windows Desktop
 
 Windows x64 build and one-click per-user installer workflow: see [Windows install guide](docs/WINDOWS_INSTALL.md). Portable ZIP and installer are CI artifacts; Google login on Windows remains unsupported. Desktop output folder selection and Ctrl+O import are available.
+
+## Windows Smali & Resource Workspace
+
+Tools → Smali & Resource Workspace: decode, edit existing Smali/XML and rebuild an unsigned APK using separately installed Java and trusted Apktool. See [workspace guide](docs/APKTOOL_WORKSPACE.md). External tooling is not sandboxed or included in the installer.

@@ -120,3 +120,7 @@ an authorized key. See docs/APK_EDITING.md for usage and limits.
 - Google account selection will not work in APKs whose signing SHA is not registered in Google Cloud. GitHub-hosted debug APK signing keys can change between workflow runs. See `docs/GOOGLE_SIGN_IN_SETUP.md`.
 - Test release-mode APKs use a temporary debug signing identity, not a trusted
   production keystore.
+
+## Windows Apktool workspace
+
+User-selected trusted Java and Apktool bridge decodes Smali and XML into a new local workspace. Existing bounded text files can be edited and rebuilt via external Apktool, with logs and unsigned output saved separately. No Android assembler, automatic signing or bundled Apktool. Real external round-trip validation is pending.
