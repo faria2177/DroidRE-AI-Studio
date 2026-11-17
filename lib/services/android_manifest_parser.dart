@@ -43,6 +43,8 @@ class AndroidManifestParser {
     return ManifestInfo(
       packageName: attribute(manifestTag, 'package'),
       versionCode: attribute(manifestTag, 'versionCode'),
+      versionCodeMajor: attribute(manifestTag, 'versionCodeMajor'),
+      splitName: attribute(manifestTag, 'split'),
       versionName: attribute(manifestTag, 'versionName'),
       minSdk: attribute(sdkTag, 'minSdkVersion'),
       targetSdk: attribute(sdkTag, 'targetSdkVersion'),
@@ -144,6 +146,8 @@ class AndroidManifestParser {
     return ManifestInfo(
       packageName: metadata['package'] ?? '',
       versionCode: metadata['versionCode'] ?? '',
+      versionCodeMajor: metadata['versionCodeMajor'] ?? '',
+      splitName: metadata['split'] ?? '',
       versionName: metadata['versionName'] ?? '',
       minSdk: metadata['minSdkVersion'] ?? '',
       targetSdk: metadata['targetSdkVersion'] ?? '',

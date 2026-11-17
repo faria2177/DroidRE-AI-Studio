@@ -26,6 +26,7 @@ import 'project_workspace_screen.dart';
 import 'archive_member_export_screen.dart';
 import 'paged_binary_screen.dart';
 import 'ghidra_headless_screen.dart';
+import 'split_set_screen.dart';
 import 'package:file_picker/file_picker.dart';
 import '../services/framework_recovery_index.dart';
 import 'dart:convert';
@@ -1422,6 +1423,13 @@ class _ToolsScreenState extends State<ToolsScreen> {
             MaterialPageRoute<void>(builder: (_) => const GhidraHeadlessScreen())),
         )),
         const SizedBox(height: 12),
+        Card(child: ListTile(
+          leading: const Icon(Icons.fact_check_outlined),
+          title: const Text('Split APK Set Preflight'),
+          subtitle: const Text('Manifest identity and split consistency'),
+          onTap: () => Navigator.of(context).push(MaterialPageRoute<void>(
+            builder: (_) => const SplitSetScreen())),
+        )),
         Text('Source Recovery — paged export',
             style: Theme.of(context).textTheme.titleMedium),
         Card(

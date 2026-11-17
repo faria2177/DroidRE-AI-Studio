@@ -23,6 +23,8 @@ class ManifestInfo {
     this.packageName = '',
     this.versionName = '',
     this.versionCode = '',
+    this.versionCodeMajor = '',
+    this.splitName = '',
     this.minSdk = '',
     this.targetSdk = '',
     this.permissions = const [],
@@ -36,6 +38,7 @@ class ManifestInfo {
   final String packageName;
   final String versionName;
   final String versionCode;
+  final String versionCodeMajor, splitName;
   final String minSdk;
   final String targetSdk;
   final List<String> permissions;
@@ -49,6 +52,8 @@ class ManifestInfo {
     'packageName': packageName,
     'versionName': versionName,
     'versionCode': versionCode,
+    'versionCodeMajor': versionCodeMajor,
+    'splitName': splitName,
     'minSdk': minSdk,
     'targetSdk': targetSdk,
     'permissions': permissions,
@@ -63,6 +68,8 @@ class ManifestInfo {
     packageName: json['packageName'] as String? ?? '',
     versionName: json['versionName'] as String? ?? '',
     versionCode: json['versionCode'] as String? ?? '',
+    versionCodeMajor: json['versionCodeMajor'] as String? ?? '',
+    splitName: json['splitName'] as String? ?? '',
     minSdk: json['minSdk'] as String? ?? '',
     targetSdk: json['targetSdk'] as String? ?? '',
     permissions: _strings(json['permissions']),
