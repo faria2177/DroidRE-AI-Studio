@@ -7,6 +7,7 @@ import 'package:crypto/crypto.dart';
 import 'package_binary_reader.dart';
 import 'framework_version_mapping.dart';
 import 'hermes76_inspector.dart';
+import 'il2cpp_metadata_mapping.dart';
 
 /// Narrow format inspection; no JavaScript, native or managed code runs.
 class FrameworkBinaryInspector {
@@ -75,6 +76,13 @@ class FrameworkBinaryInspector {
         result['literalTableWarning'] = e.message;
       }
       result['strings'] = _strings(bytes, u32(24), u32(28), terminated: true);
+      if (const {27, 29}.contains(version)) {
+        try {
+          result['definitionMapping'] = Il2cppMetadataMapping.inspect(bytes);
+        } on FormatException catch (e) {
+          result['definitionMapping'] = {'status': 'unsupported-layout', 'warning': e.message};
+        }
+      }
       result['note'] = 'Classic metadata string names only; no type/method mapping, C# or native registration recovery.';
       return result;
     }
