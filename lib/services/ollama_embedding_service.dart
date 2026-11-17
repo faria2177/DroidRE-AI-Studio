@@ -78,6 +78,61 @@ class OllamaEmbeddingService {
     return decode(utf8.decode(bytes), input.length);
   }
 
+  /// Resolve only the selected installed model's digest from the local tags API.
+  static String parseDigest(String body, String model) {
+    final decoded = jsonDecode(body);
+    if (decoded is! Map || decoded['models'] is! List) {
+      throw const FormatException('Invalid installed-model list');
+    }
+    final items = decoded['models'] as List;
+    if (items.length > 1000) {
+      throw const FormatException('Too many installed models');
+    }
+    final matches = items.whereType<Map>().where((item) =>
+      item['name'] == model || item['name'] == '$model:latest').toList();
+    if (matches.length != 1 || matches.single['digest'] is! String) {
+      throw const FormatException('Selected installed model fingerprint unavailable');
+    }
+    final digest = (matches.single['digest'] as String).toLowerCase();
+    if (!RegExp(r'^(?:sha256:)?[0-9a-f]{64}$').hasMatch(digest)) {
+      throw const FormatException('Invalid model digest');
+    }
+    return digest.replaceFirst('sha256:', '');
+  }
+
+  Future<String> fingerprint() async {
+    if (_closed || _active != null) {
+      throw const FormatException('Invalid or cancelled model request');
+    }
+    final client = HttpClient()
+      ..connectionTimeout = const Duration(seconds: 10)
+      ..findProxy = ((_) => 'DIRECT');
+    _active = client;
+    try {
+      return await (() async {
+        final request = await client.getUrl(
+          Uri.parse('http://127.0.0.1:11434/api/tags'));
+        request.followRedirects = false;
+        final response = await request.close();
+        if (response.statusCode != HttpStatus.ok ||
+            response.contentLength > maxResponse) {
+          throw const FormatException('Local model fingerprint unavailable');
+        }
+        final bytes = <int>[];
+        await for (final chunk in response) {
+          if (chunk.length > maxResponse - bytes.length) {
+            throw const FormatException('Model list exceeds limit');
+          }
+          bytes.addAll(chunk);
+        }
+        return parseDigest(utf8.decode(bytes), model);
+      })().timeout(const Duration(seconds: 15));
+    } finally {
+      client.close(force: true);
+      _active = null;
+    }
+  }
+
   void close() {
     _closed = true;
     _active?.close(force: true);

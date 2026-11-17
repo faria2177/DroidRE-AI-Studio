@@ -1,7 +1,9 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import '../services/ollama_embedding_service.dart';
 import '../services/project_context_search.dart';
 import '../services/semantic_code_search.dart';
+import '../services/semantic_vector_cache.dart';
 
 class SemanticContextDialog extends StatefulWidget {
   const SemanticContextDialog({super.key, required this.root});
@@ -16,7 +18,7 @@ class _SemanticContextDialogState extends State<SemanticContextDialog> {
   String _model = OllamaEmbeddingService.models.first;
   SemanticResult? _result;
   OllamaEmbeddingService? _client;
-  bool _consent = false, _busy = false;
+  bool _consent = false, _busy = false, _persist = false, _hybrid = true;
   String _message = '';
 
   @override
@@ -44,10 +46,30 @@ class _SemanticContextDialogState extends State<SemanticContextDialog> {
       _message = '';
     });
     try {
-      final result = await SemanticCodeSearch.search(widget.root, question, client.embed,
+      final root = await Directory(widget.root).resolveSymbolicLinks();
+      final persist = _persist;
+      final hybrid = _hybrid;
+      final store = persist ? await SemanticVectorCache.appLocal() : null;
+      final digest = persist ? await client.fingerprint() : null;
+      final previous = store != null
+          ? await store.load(root, client.model, digest!) : <String, List<double>>{};
+      final incremental = IncrementalEmbeddings(previous, client.embed);
+      final result = await SemanticCodeSearch.search(root, question, client.embed,
+          documentEmbed: incremental.embed, hybrid: hybrid,
           cancelled: () => !mounted || _client != client);
+      if (store != null) {
+        if (await client.fingerprint() != digest) {
+          throw const FormatException('Model changed during search; retry');
+        }
+        if (mounted && _client == client) {
+          await store.save(root, client.model, digest!, incremental.current);
+        }
+      }
       if (mounted && _client == client) {
-        setState(() => _result = result);
+        setState(() {
+          _result = result;
+          _message = '${incremental.reused} reused · ${incremental.embedded} new chunk vectors';
+        });
       }
     } catch (e) {
       if (mounted && _client == client) {
@@ -71,6 +93,29 @@ class _SemanticContextDialogState extends State<SemanticContextDialog> {
       _busy = false;
       _message = 'Search cancelled';
     });
+  }
+
+  Future<void> _clearCache() async {
+    if (_busy) {
+      return;
+    }
+    setState(() => _busy = true);
+    try {
+      final root = await Directory(widget.root).resolveSymbolicLinks();
+      final store = await SemanticVectorCache.appLocal();
+      await store.clear(root, _model);
+      if (mounted) {
+        setState(() => _message = 'Selected workspace/model cache cleared');
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _message = '$e');
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _busy = false);
+      }
+    }
   }
 
   void _draft() {
@@ -113,7 +158,19 @@ class _SemanticContextDialogState extends State<SemanticContextDialog> {
           CheckboxListTile(value: _consent, dense: true,
             title: const Text('I trust this server and authorize sampled code for embeddings'),
             onChanged: _busy ? null : (v) => setState(() => _consent = v ?? false)),
-          OutlinedButton(onPressed: _busy ? _cancel : !_consent ? null : _search,
+          CheckboxListTile(value: _hybrid, dense: true,
+            title: const Text('Hybrid keyword + vector ranking'),
+            onChanged: _busy ? null : (v) => setState(() {
+              _hybrid = v ?? false;
+              _result = null;
+              _chosen.clear();
+            })),
+          CheckboxListTile(value: _persist, dense: true,
+            title: const Text('Keep local vectors on disk (sensitive derived data)'),
+            onChanged: _busy ? null : (v) => setState(() => _persist = v ?? false)),
+          TextButton(onPressed: _busy ? null : _clearCache,
+            child: const Text('Clear workspace/model cache')),
+          OutlinedButton(onPressed: _busy ? (_client != null ? _cancel : null) : !_consent ? null : _search,
             child: Text(_busy ? 'Cancel search' : 'Find relevant code')),
           if (_busy) const LinearProgressIndicator(),
           if (result != null)
@@ -133,7 +190,7 @@ class _SemanticContextDialogState extends State<SemanticContextDialog> {
                     }
                   }),
                 title: Text('${item.path}:${item.firstLine}–${item.lastLine} · '
-                    'cosine ${hit.similarity.toStringAsFixed(3)}'),
+                    'cosine ${hit.similarity.toStringAsFixed(3)} · rank ${hit.score.toStringAsFixed(3)}'),
                 subtitle: SelectableText(item.text,
                   style: const TextStyle(fontFamily: 'monospace', fontSize: 11)));
             })),

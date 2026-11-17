@@ -7,9 +7,9 @@ import 'project_workspace_service.dart';
 typedef EmbeddingBatch = Future<List<List<double>>> Function(List<String> input);
 
 class SemanticHit {
-  const SemanticHit(this.evidence, this.similarity);
+  const SemanticHit(this.evidence, this.similarity, {this.lexical = 0, this.score = 0});
   final CodeEvidence evidence;
-  final double similarity;
+  final double similarity, lexical, score;
 }
 
 class SemanticResult {
@@ -74,7 +74,8 @@ class SemanticCodeSearch {
 
   static Future<List<SemanticHit>> rank({
     required String question, required List<CodeEvidence> evidence,
-    required EmbeddingBatch embed, bool Function()? cancelled,
+    required EmbeddingBatch embed, EmbeddingBatch? documentEmbed,
+    bool hybrid = false, bool Function()? cancelled,
   }) async {
     final query = question.trim();
     if (query.isEmpty || query.length > 600 || evidence.isEmpty || evidence.length > maxChunks) {
@@ -98,7 +99,7 @@ class SemanticCodeSearch {
     for (var offset = 0; offset < evidence.length; offset += batchSize) {
       check();
       final batch = evidence.skip(offset).take(batchSize).toList();
-      final vectors = await embed(batch.map((e) => e.text).toList());
+      final vectors = await (documentEmbed ?? embed)(batch.map((e) => e.text).toList());
       if (vectors.length != batch.length) {
         throw const FormatException('Unexpected document embedding count');
       }
@@ -111,12 +112,15 @@ class SemanticCodeSearch {
         for (var j = 0; j < vector.length; j++) {
           dot += vector[j] * queryVector[j];
         }
-        hits.add(SemanticHit(batch[i], dot.clamp(-1.0, 1.0).toDouble()));
+        final cosine = dot.clamp(-1.0, 1.0).toDouble();
+        final lexical = keywordCoverage(batch[i], query);
+        final score = hybrid ? 0.75 * ((cosine + 1) / 2) + 0.25 * lexical : cosine;
+        hits.add(SemanticHit(batch[i], cosine, lexical: lexical, score: score));
       }
     }
     check();
     hits.sort((a, b) {
-      final score = b.similarity.compareTo(a.similarity);
+      final score = b.score.compareTo(a.score);
       if (score != 0) {
         return score;
       }
@@ -126,8 +130,21 @@ class SemanticCodeSearch {
     return hits.take(24).toList();
   }
 
+  static double keywordCoverage(CodeEvidence evidence, String question) {
+    final words = RegExp(r'[A-Za-z0-9_$][A-Za-z0-9_.$]{1,63}')
+        .allMatches(question.toLowerCase()).map((m) => m.group(0)!)
+        .where((w) => !const {'the','and','what','how','this','that','does','with','from','explain','code','where','which','for','is','of','in','to'}.contains(w))
+        .toSet().take(8).toList();
+    if (words.isEmpty) {
+      return 0;
+    }
+    final content = ('${evidence.path} ${evidence.text}').toLowerCase();
+    return words.where(content.contains).length / words.length;
+  }
+
   static Future<SemanticResult> search(String root, String question,
-      EmbeddingBatch embed, {bool Function()? cancelled}) async {
+      EmbeddingBatch embed, {EmbeddingBatch? documentEmbed, bool hybrid = false,
+      bool Function()? cancelled}) async {
     final listing = await ProjectWorkspaceService.list(root);
     final evidence = <CodeEvidence>[];
     var filesRead = 0;
@@ -149,7 +166,7 @@ class SemanticCodeSearch {
       }
     }
     final hits = await rank(question: question, evidence: evidence, embed: embed,
-        cancelled: cancelled);
+        documentEmbed: documentEmbed, hybrid: hybrid, cancelled: cancelled);
     return SemanticResult(hits, filesRead, evidence.length);
   }
 }
