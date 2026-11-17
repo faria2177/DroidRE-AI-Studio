@@ -43,8 +43,8 @@ class OllamaEmbeddingService {
       throw const FormatException('Invalid or cancelled embedding request');
     }
     final client = HttpClient()
-      ..findProxy = (_) => 'DIRECT'
-      ..connectionTimeout = const Duration(seconds: 10);
+      ..connectionTimeout = const Duration(seconds: 10)
+      ..findProxy = ((_) => 'DIRECT');
     _active = client;
     try {
       return await _request(client, input).timeout(const Duration(seconds: 90));
