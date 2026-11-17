@@ -1,25 +1,33 @@
-# AI providers — MVP and roadmap
+# AI providers
 
-## Working request adapters
+AI Studio offers OpenRouter, OpenAI, DeepSeek, Groq, Google Gemini (OpenAI
+compatibility endpoint), Anthropic Claude (Messages API), xAI Grok (legacy
+chat-completions endpoint), Mistral, and Ollama loopback on desktop.
+Enter a current model ID available to your account. No model is guaranteed
+free. Keys are session-only; no whole APK is sent. Cloud requests require
+explicit prompt review consent. Changing the primary provider clears its key.
 
-The AI Studio UI supports explicit chat-completion calls with user API keys:
+## Optional fallback
 
-- OpenRouter
-- OpenAI
-- DeepSeek
-- Groq
+Select a different fallback provider, its own model/key, and explicitly
+consent to sharing the same prompt. One attempt is made only on HTTP 429,
+502, 503, 504 or 529. No fallback on auth errors, timeouts, malformed
+responses or redirects. A fallback can incur separate charges. The output
+identifies the provider and trigger. Prompts are capped at 40,000 characters
+and successful responses at 2 MiB.
 
-You must enter a model ID that the selected provider actually offers to your
-account. Model availability and pricing change. **No model is guaranteed free**.
-Keys are kept in memory only; leaving the screen clears them. Neither APK files
-nor decompiled text are automatically sent.
+Ollama requires a running local server at localhost:11434 and downloaded
+model on the desktop device. The Android UI hides this option; no cleartext
+network policy relaxation or model bundling is included. Local inference is
+not guaranteed just by choosing a model name (Ollama can route cloud models).
+Use a verified locally downloaded model for offline use.
 
-## Roadmap
+Official documentation: https://ai.google.dev/gemini-api/docs/openai ,
+https://platform.claude.com/docs/en/api/messages/create ,
+https://docs.x.ai/developers/rest-api-reference/inference/chat-completions ,
+https://docs.mistral.ai/api/endpoint/chat ,
+https://docs.ollama.com/openai .
 
-Google Gemini, Anthropic Claude, xAI Grok, Qwen, Z.ai/GLM, Mistral, Hugging Face,
-Together, Cerebras, local Ollama and other official APIs will be added through
-individual verified adapters. Later milestones include live model discovery,
-cost budgets, 429-aware fallback, opt-in project RAG and on-device models.
-
-Paid provider access always requires appropriate user credentials or an
-authenticated metered backend. No key scraping or quota circumvention.
+Mock HTTP tests verify adapter request/response shape, not live provider
+availability. Live catalog discovery, more providers, multi-step agents,
+cost budgets, project RAG and Android local inference remain future work.

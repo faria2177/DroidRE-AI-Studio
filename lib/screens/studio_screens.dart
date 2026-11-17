@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
 
@@ -729,6 +731,14 @@ class _AiStudioScreenState extends State<AiStudioScreen> {
   String output = '';
   bool busy = false;
   bool consentToSendCode = false;
+  bool allowFallback = false;
+  bool fallbackConsent = false;
+  AiEndpoint? fallbackEndpoint;
+  final fallbackKey = TextEditingController();
+  final fallbackModel = TextEditingController();
+
+  List<AiEndpoint> get availableEndpoints => aiEndpoints.where((item) =>
+      !item.local || Platform.isWindows || Platform.isLinux || Platform.isMacOS).toList();
 
   @override
   void initState() {
@@ -741,24 +751,30 @@ class _AiStudioScreenState extends State<AiStudioScreen> {
     keyController.dispose();
     modelController.dispose();
     promptController.dispose();
+    fallbackKey.dispose();
+    fallbackModel.dispose();
     service.close();
     super.dispose();
   }
 
   Future<void> _send() async {
-    if (busy || (widget.initialPrompt.isNotEmpty && !consentToSendCode)) return;
+    if (busy || !consentToSendCode || (allowFallback && !fallbackConsent)) return;
     setState(() {
       busy = true;
       output = '';
     });
     try {
-      final response = await service.complete(
-        endpoint: endpoint,
-        model: modelController.text,
-        apiKey: keyController.text,
+      final response = await service.completeWithFallback(
+        primary: AiSelection(endpoint, modelController.text, keyController.text),
+        fallback: fallbackEndpoint == null ? null :
+          AiSelection(fallbackEndpoint!, fallbackModel.text, fallbackKey.text),
+        allowFallback: allowFallback && fallbackConsent,
         prompt: promptController.text,
       );
-      if (mounted) setState(() => output = response);
+      if (mounted) setState(() => output =
+          'Provider: ${response.provider}\n'
+          '${response.fallbackReason == null ? '' : 'Fallback: ${response.fallbackReason}\n'}'
+          '\n${response.text}');
     } catch (error) {
       if (mounted) setState(() => output = 'Request failed: $error');
     } finally {
@@ -782,7 +798,7 @@ class _AiStudioScreenState extends State<AiStudioScreen> {
             labelText: 'AI Provider',
             border: OutlineInputBorder(),
           ),
-          items: aiEndpoints.map(
+          items: availableEndpoints.map(
             (item) => DropdownMenuItem(value: item, child: Text(item.name)),
           ).toList(),
           onChanged: busy
@@ -791,7 +807,15 @@ class _AiStudioScreenState extends State<AiStudioScreen> {
                   if (value == null) return;
                   setState(() {
                     endpoint = value;
+                    keyController.clear();
                     modelController.text = value.defaultModel;
+                    consentToSendCode = false;
+                    fallbackConsent = false;
+                    if (fallbackEndpoint == value) {
+                      fallbackEndpoint = null;
+                      fallbackKey.clear();
+                      fallbackModel.clear();
+                    }
                   });
                 },
         ),
@@ -800,14 +824,17 @@ class _AiStudioScreenState extends State<AiStudioScreen> {
         const SizedBox(height: 12),
         TextField(
           controller: modelController,
+          enabled: !busy,
+          onChanged: (_) => setState(() => consentToSendCode = false),
           decoration: const InputDecoration(
             labelText: 'Model ID',
             border: OutlineInputBorder(),
           ),
         ),
         const SizedBox(height: 12),
-        TextField(
+        if (!endpoint.local) TextField(
           controller: keyController,
+          enabled: !busy,
           obscureText: true,
           autocorrect: false,
           decoration: const InputDecoration(
@@ -819,6 +846,11 @@ class _AiStudioScreenState extends State<AiStudioScreen> {
         const SizedBox(height: 12),
         TextField(
           controller: promptController,
+          enabled: !busy,
+          onChanged: (_) => setState(() {
+            consentToSendCode = false;
+            fallbackConsent = false;
+          }),
           minLines: 4,
           maxLines: 9,
           decoration: const InputDecoration(
@@ -827,8 +859,7 @@ class _AiStudioScreenState extends State<AiStudioScreen> {
             border: OutlineInputBorder(),
           ),
         ),
-        if (widget.initialPrompt.isNotEmpty)
-          CheckboxListTile(
+        CheckboxListTile(
             value: consentToSendCode,
             title: const Text('I reviewed the extracted code and agree to '
                 'send this text to the selected AI provider'),
@@ -837,11 +868,57 @@ class _AiStudioScreenState extends State<AiStudioScreen> {
             onChanged: busy ? null : (value) => setState(() =>
                 consentToSendCode = value ?? false),
           ),
+        SwitchListTile(
+          value: allowFallback,
+          title: const Text('Enable one automatic fallback'),
+          subtitle: const Text('Only on HTTP 429, 502, 503, 504 or 529. '
+              'A second provider may charge separately.'),
+          onChanged: busy ? null : (value) => setState(() {
+            allowFallback = value;
+            fallbackConsent = false;
+          }),
+        ),
+        if (allowFallback) ...[
+          DropdownButtonFormField<AiEndpoint>(
+            key: ValueKey(endpoint.name),
+            initialValue: fallbackEndpoint,
+            decoration: const InputDecoration(
+              labelText: 'Fallback provider', border: OutlineInputBorder()),
+            items: availableEndpoints.where((item) => item != endpoint)
+                .map((item) => DropdownMenuItem(value: item, child: Text(item.name)))
+                .toList(),
+            onChanged: busy ? null : (value) => setState(() {
+              fallbackEndpoint = value;
+              fallbackKey.clear();
+              fallbackModel.text = value?.defaultModel ?? '';
+              fallbackConsent = false;
+            }),
+          ),
+          const SizedBox(height: 8),
+          TextField(controller: fallbackModel, enabled: !busy,
+            onChanged: (_) => setState(() => fallbackConsent = false),
+            decoration: const InputDecoration(
+              labelText: 'Fallback model ID', border: OutlineInputBorder())),
+          if (fallbackEndpoint?.local != true) ...[
+            const SizedBox(height: 8),
+            TextField(controller: fallbackKey, enabled: !busy, obscureText: true,
+              autocorrect: false, enableSuggestions: false,
+              decoration: const InputDecoration(
+                labelText: 'Separate fallback API key (session only)',
+                border: OutlineInputBorder())),
+          ],
+          CheckboxListTile(
+            value: fallbackConsent,
+            title: Text('I allow sending this same prompt to '
+                '${fallbackEndpoint?.name ?? 'the selected fallback'} if needed'),
+            onChanged: busy || fallbackEndpoint == null ? null : (value) =>
+                setState(() => fallbackConsent = value ?? false),
+          ),
+        ],
         const SizedBox(height: 14),
         FilledButton.icon(
-          onPressed: busy ||
-              (widget.initialPrompt.isNotEmpty && !consentToSendCode)
-              ? null : _send,
+          onPressed: busy || !consentToSendCode ||
+              (allowFallback && !fallbackConsent) ? null : _send,
           icon: busy
               ? const SizedBox(
                   width: 18,
@@ -861,7 +938,7 @@ class _AiStudioScreenState extends State<AiStudioScreen> {
           ),
         const SizedBox(height: 14),
         const StatusPill(
-          label: 'Automatic fallback / local RAG: later milestones',
+          label: 'Session keys only · local RAG remains planned',
           icon: Icons.info_outline,
         ),
       ],

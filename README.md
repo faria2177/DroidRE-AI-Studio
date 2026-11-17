@@ -150,3 +150,7 @@ or unauthorized intrusion functions are included.
 - [Android / GitHub build](docs/BUILD.md)
 - [Google Sign-In setup](docs/GOOGLE_SIGN_IN_SETUP.md)
 - [AI provider setup](docs/AI_PROVIDERS.md)
+
+### Multi-AI routing
+
+Eight cloud providers plus desktop Ollama loopback; explicit consent for a single fallback. See [API providers](docs/AI_PROVIDERS.md) for limits.
