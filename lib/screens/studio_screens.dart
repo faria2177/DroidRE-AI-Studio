@@ -793,6 +793,7 @@ class _AiStudioScreenState extends State<AiStudioScreen> {
   final _sessionKeys = <AiEndpoint, String>{};
   final _sessionModels = <AiEndpoint, String>{};
   bool _showKey = false;
+  String _connectionStatus = '';
   static const _keyLinks = {
     'OpenRouter': 'https://openrouter.ai/keys',
     'OpenAI': 'https://platform.openai.com/api-keys',
@@ -935,6 +936,7 @@ class _AiStudioScreenState extends State<AiStudioScreen> {
             fallbackConsent = false;
           } else {
             modelController.text = choice;
+            _connectionStatus = '';
             consentToSendCode = false;
           }
         });
@@ -954,18 +956,18 @@ class _AiStudioScreenState extends State<AiStudioScreen> {
     if (busy) {
       return;
     }
-    setState(() { busy = true; output = 'Testing selected provider…'; });
+    setState(() { busy = true; _connectionStatus = 'Testing selected provider…'; });
     try {
       final answer = await service.complete(endpoint: endpoint,
         model: modelController.text, apiKey: keyController.text,
         prompt: 'Reply with OK only.');
       if (mounted) {
-        setState(() => output = 'Connection test succeeded (no project code sent).\n'
+        setState(() => _connectionStatus = 'Connection test succeeded (no project code sent).\n'
           'Provider: ${endpoint.name}\nModel: ${modelController.text}\n$answer');
       }
     } catch (e) {
       if (mounted) {
-        setState(() => output = 'Connection test failed: $e');
+        setState(() => _connectionStatus = 'Connection test failed: $e');
       }
     } finally {
       if (mounted) {
@@ -1045,6 +1047,7 @@ class _AiStudioScreenState extends State<AiStudioScreen> {
                     keyController.text = _sessionKeys[value] ?? '';
                     modelController.text = _sessionModels[value] ?? value.defaultModel;
                     _showKey = false;
+                    _connectionStatus = '';
                     output = '';
                     consentToSendCode = false;
                     fallbackConsent = false;
@@ -1066,13 +1069,14 @@ class _AiStudioScreenState extends State<AiStudioScreen> {
           consentToSendCode = false;
           fallbackConsent = false;
           _showKey = false;
+          _connectionStatus = '';
           output = 'Session API keys cleared.';
         }), child: const Text('Clear session API keys')),
         const SizedBox(height: 12),
         TextField(
           controller: modelController,
           enabled: !busy,
-          onChanged: (_) => setState(() => consentToSendCode = false),
+          onChanged: (_) => setState(() { consentToSendCode = false; _connectionStatus = ''; }),
           decoration: const InputDecoration(
             labelText: 'Model ID',
             border: OutlineInputBorder(),
@@ -1085,7 +1089,7 @@ class _AiStudioScreenState extends State<AiStudioScreen> {
           obscureText: !_showKey,
           autocorrect: false,
           enableSuggestions: false,
-          onChanged: (_) => setState(() { consentToSendCode = false; fallbackConsent = false; }),
+          onChanged: (_) => setState(() { consentToSendCode = false; fallbackConsent = false; _connectionStatus = ''; }),
           decoration: InputDecoration(
             labelText: 'API key (session only)',
             border: const OutlineInputBorder(),
@@ -1103,6 +1107,8 @@ class _AiStudioScreenState extends State<AiStudioScreen> {
           }, child: const Text('Copy official API key page link')),
         OutlinedButton.icon(onPressed: busy ? null : _testConnection,
           icon: const Icon(Icons.network_check), label: const Text('Test connection (sends OK prompt only; may use quota)')),
+        if (_connectionStatus.isNotEmpty)
+          SelectableText(_connectionStatus),
         const Text('If Model ID is empty, fetch available models and select one. Free plans have provider-specific limits.'),
         OutlinedButton.icon(
           onPressed: busy ? null : () => _discover(),

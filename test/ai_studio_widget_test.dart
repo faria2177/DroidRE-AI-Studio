@@ -13,17 +13,17 @@ void main() {
       body: AiStudioScreen(initialPrompt: draft, draftRevision: revision, chatService: service)));
     await tester.pumpWidget(screen('first code', 1));
     final keyField = find.widgetWithText(TextField, 'API key (session only)');
-    await tester.scrollUntilVisible(keyField, 150);
+    await tester.scrollUntilVisible(keyField, 150, scrollable: find.byType(Scrollable).first);
     await tester.enterText(keyField, 'session-test-key');
     await tester.pump();
     await tester.pumpWidget(screen('second code', 2));
     await tester.pump();
     expect(tester.widget<TextField>(keyField).controller!.text, 'session-test-key');
     final prompt = find.widgetWithText(TextField, 'Ask about Android code');
-    await tester.scrollUntilVisible(prompt, 150);
+    await tester.scrollUntilVisible(prompt, 150, scrollable: find.byType(Scrollable).first);
     expect(tester.widget<TextField>(prompt).controller!.text, 'second code');
-    final send = find.widgetWithText(FilledButton, 'Send to selected provider');
-    await tester.scrollUntilVisible(send, 150);
+    final send = find.ancestor(of: find.text('Send to selected provider'), matching: find.byWidgetPredicate((w) => w is FilledButton));
+    await tester.scrollUntilVisible(send, 150, scrollable: find.byType(Scrollable).first);
     expect(tester.widget<FilledButton>(send).onPressed, isNull);
   });
 }
