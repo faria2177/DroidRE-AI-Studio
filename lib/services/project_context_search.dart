@@ -5,6 +5,7 @@ import 'dart:isolate';
 import 'package:path/path.dart' as p;
 
 import 'saf_source_recovery_service.dart';
+import 'project_workspace_service.dart';
 
 class CodeEvidence {
   const CodeEvidence(this.path, this.firstLine, this.lastLine, this.text);
@@ -34,14 +35,7 @@ class ProjectContextSearch {
   static const maxSnippetChars = 1800;
 
   static bool eligible(String path) {
-    final parts = path.split('/');
-    return path.length <= 512 && !path.contains('\\') &&
-        !path.contains(':') &&
-        !parts.any((part) => part.isEmpty || part == '.' || part == '..' ||
-            part.startsWith('.') || part.toLowerCase() == 'node_modules' ||
-            part.toLowerCase() == 'build') &&
-        RegExp(r'\.(java|kt|smali|dart|xml|json|txt|md|js|ts)$',
-            caseSensitive: false).hasMatch(path);
+    return ProjectWorkspaceService.eligible(path);
   }
 
   static String _query(String value) {

@@ -9,7 +9,8 @@ lightweight lexical keyword/string/comment coloring, exact in-tab search,
 and disk-based global search via ProjectContextSearch. Global results have
 relative path and excerpt line; selecting a result places the caret at the
 start of its excerpt (not guaranteed scroll positioning). Global search
-uses the prior bounded text extension allowlist, not unsaved drafts.
+uses the workspace text extension allowlist, including C# and project files,
+not unsaved drafts.
 
 Windows edits remain in memory; export one edited copy to a NEW file
 outside the source tree. No original writes, autosave, build, execution,

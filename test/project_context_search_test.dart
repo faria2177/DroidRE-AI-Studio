@@ -40,6 +40,8 @@ void main() {
     expect(ProjectContextSearch.eligible('../a.java'), false);
     expect(ProjectContextSearch.eligible('.git/config.txt'), false);
     expect(ProjectContextSearch.eligible('source/main.dart'), true);
+    expect(ProjectContextSearch.eligible('sources/Main.cs'), true);
+    expect(ProjectContextSearch.eligible('sources/project.csproj'), true);
     expect(() => ProjectContextSearch.matchText('a.java', 'code', ''), throwsFormatException);
   });
 }

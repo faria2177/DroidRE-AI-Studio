@@ -81,7 +81,7 @@ class _ProjectWorkspaceScreenState extends State<ProjectWorkspaceScreen> {
   List<String> _paths = [];
   final _tabs = <_WorkspaceTab>[];
   int _active = -1;
-  bool _busy = false, _partial = false;
+  bool _busy = false, _partial = false, _exitConfirmed = false, _askingExit = false;
   String _message = '', _filter = '';
   final _find = TextEditingController();
   final _global = TextEditingController();
@@ -200,6 +200,9 @@ class _ProjectWorkspaceScreenState extends State<ProjectWorkspaceScreen> {
       final text = _uri != null
           ? await SafSourceRecoveryService.readFile(_uri!, path)
           : await ProjectWorkspaceService.read(_root!, path);
+      if (_uri != null && text.startsWith('This file is larger')) {
+        throw const FormatException('File exceeds the SAF preview limit');
+      }
       ProjectWorkspaceService.exportBytes(text);
       if (!mounted) {
         return;
@@ -409,10 +412,21 @@ class _ProjectWorkspaceScreenState extends State<ProjectWorkspaceScreen> {
   @override
   Widget build(BuildContext context) {
     final hasRoot = _root != null || _uri != null;
-    return PopScope(canPop: !_busy && !_tabs.any((t) => t.dirty),
+    return PopScope(canPop: _exitConfirmed || (!_busy && !_tabs.any((t) => t.dirty)),
       onPopInvokedWithResult: (didPop, _) async {
-        if (!didPop && !_busy && await _confirmDiscard() && mounted) {
-          Navigator.of(context).pop();
+        if (didPop || _busy || _askingExit || _exitConfirmed) {
+          return;
+        }
+        _askingExit = true;
+        final discard = await _confirmDiscard();
+        _askingExit = false;
+        if (discard && mounted) {
+          setState(() => _exitConfirmed = true);
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (mounted) {
+              Navigator.of(context).pop();
+            }
+          });
         }
       },
       child: Scaffold(
@@ -443,9 +457,9 @@ class _ProjectWorkspaceScreenState extends State<ProjectWorkspaceScreen> {
                   ]);
                 }
                 return Column(children: [
-                  SizedBox(height: 250, child: _sidebar()),
+                  Flexible(flex: 2, child: _sidebar()),
                   const Divider(height: 1),
-                  Expanded(child: _editor()),
+                  Expanded(flex: 3, child: _editor()),
                 ]);
               })),
         ]),
