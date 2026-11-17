@@ -25,4 +25,5 @@ dev_dependencies:
 flutter:
   uses-material-design: true
   assets:
+    - assets/ghidra/DroidREHeadlessExport.java
     - assets/branding/droidre_logo.png

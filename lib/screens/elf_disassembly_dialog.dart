@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -5,6 +6,7 @@ import '../services/elf_disassembly_inspector.dart';
 import '../services/elf_symbol_inspector.dart';
 import '../services/native_branch_references.dart';
 import 'native_extended_dialog.dart';
+import 'ghidra_headless_screen.dart';
 
 class ElfDisassemblyDialog extends StatefulWidget {
   const ElfDisassemblyDialog({
@@ -108,6 +110,10 @@ class _ElfDisassemblyDialogState extends State<ElfDisassemblyDialog> {
         ),
       ),
       actions: [
+        if (Platform.isWindows)
+          TextButton(onPressed: () => Navigator.of(context).push(MaterialPageRoute<void>(
+            builder: (_) => GhidraHeadlessScreen(input: widget.apkPath, member: widget.entryName))),
+            child: const Text('Ghidra decompiler')),
         TextButton(onPressed: () => showDialog<void>(context: context,
           builder: (_) => NativeExtendedDialog(apkPath: widget.apkPath,
             entryName: widget.entryName, sectionIndex: widget.sectionIndex,

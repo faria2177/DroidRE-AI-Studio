@@ -7,7 +7,7 @@ not a percentage estimate of verified functionality.
 | --- | --- | --- |
 | 22 | Declaration hints, app-local bookmarks/history | Semantic index, version history, device UI |
 | 23 | Ranked local evidence, opt-in vector cache, reviewed multi-step agent | Live Ollama/provider validation, larger index, semantic citation verification |
-| 24 | Manual Ghidra function export script | Compile/run with installed Ghidra, integrated native CFG |
+| 24 | Manual and in-app headless Ghidra function/call/pseudocode export | Actual Ghidra/JDK validation, complete native CFG |
 | 25 | Dart classic snapshot hash evidence | Version database, object pool, verified per-VM decoder |
 | 26 | Framework member export and manual trusted recovery helper | Version-specific Hermes/IL2CPP recovery validation |
 | 27 | Individual split APK export, previous Apktool and signing helpers | Split merge/rebuild/verification, Android signing |

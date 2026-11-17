@@ -25,6 +25,7 @@ import 'universal_binary_screen.dart';
 import 'project_workspace_screen.dart';
 import 'archive_member_export_screen.dart';
 import 'paged_binary_screen.dart';
+import 'ghidra_headless_screen.dart';
 import 'package:file_picker/file_picker.dart';
 import '../services/framework_recovery_index.dart';
 import 'dart:convert';
@@ -1411,6 +1412,14 @@ class _ToolsScreenState extends State<ToolsScreen> {
           subtitle: const Text('Streaming hex pages, hash and search up to 1 GiB'),
           onTap: () => Navigator.of(context).push(MaterialPageRoute<void>(
             builder: (_) => const PagedBinaryScreen())),
+        )),
+        const SizedBox(height: 12),
+        Card(child: ListTile(
+          leading: const Icon(Icons.account_tree_outlined),
+          title: const Text('Ghidra Native Decompiler'),
+          subtitle: const Text('Windows · external Ghidra / JDK · function calls and pseudocode'),
+          onTap: !Platform.isWindows ? null : () => Navigator.of(context).push(
+            MaterialPageRoute<void>(builder: (_) => const GhidraHeadlessScreen())),
         )),
         const SizedBox(height: 12),
         Text('Source Recovery — paged export',
