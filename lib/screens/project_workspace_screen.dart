@@ -385,7 +385,9 @@ class _ProjectWorkspaceScreenState extends State<ProjectWorkspaceScreen> {
       saved = await LocalExportService.saveFile(dialogTitle: 'Export source project ZIP (choose a new file)',
         fileName: 'Android-project-edited.zip', bytes: bytes);
     }
-    if (mounted) setState(() => _message = saved == null ? 'Export cancelled' : 'Project ZIP exported with current drafts and saved changes.');
+    if (mounted) {
+      setState(() => _message = saved == null ? 'Export cancelled' : 'Project ZIP exported with current drafts and saved changes.');
+    }
   }
 
   Future<void> _export() async {

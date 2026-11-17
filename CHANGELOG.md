@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.9.3+13 — Android/Flutter source project preview
+
+Separate source folder/ZIP import, Android read-only SAF folder copy, app-private editable project, mobile file/editor switch, saved draft and ZIP re-export, AI build troubleshooting and source-aware context. Original input unchanged by editor. Native picker and actual IDE round-trip still need device validation.
+
 ## 0.9.1+11 — AI Studio maintenance preview
 
 Preserve the AI session when navigating tabs or importing a new inspector draft, native Gemini generation/catalog, OpenRouter free router option, provider-specific session settings, connection test, actionable errors and explicit credential clear. Add persistent opt-in agent research plan, source excerpt freshness check, local declaration suggestions and optional SDK split signer verification. Mock provider and UI tests; real account/device testing and production signing remain pending.

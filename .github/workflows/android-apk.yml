@@ -6,6 +6,9 @@ on:
     branches: [main]
     paths:
       - 'pubspec.yaml'
+      - 'lib/screens/project_workspace_screen.dart'
+      - 'lib/services/source_project_import.dart'
+      - 'android/app/src/main/kotlin/com/jahid/droidreai/MainActivity.kt'
       - 'test/ai_studio_widget_test.dart'
       - 'test/ai_chat_service_test.dart'
       - '.github/workflows/android-apk.yml'

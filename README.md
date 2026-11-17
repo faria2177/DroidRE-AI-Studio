@@ -2,7 +2,7 @@
 
 An **Android-first Flutter project** for offline APK inspection and optional AI code explanations.
 
-**Current version:** 0.9.1 development preview — local Android/Windows reverse-engineering tools and optional AI. Version-specific evidence, external tools and bounded recovery; not a complete original-source recovery product. See [Release readiness](docs/RELEASE_READINESS.md).
+**Current version:** 0.9.3 development preview — Android/Windows APK inspection, source project import/editor and reviewed AI analysis.
 
 ## What works today
 
@@ -182,3 +182,7 @@ The Ghidra synthetic fixture workflow tests the pinned official release with a c
 ## AI Studio troubleshooting (0.9.1)
 
 [AI Studio provider setup, connection tests and session handling](docs/AI_STUDIO_TROUBLESHOOTING.md). API key and model access are required for real cloud calls. No credentials are bundled.
+
+## Android Code Studio / Flutter source projects
+
+[Source ZIP and folder import, editor and export guide](docs/SOURCE_PROJECT_IMPORT.md). This preview imports a local copy; build and IDE round-trip verification remain separate.
