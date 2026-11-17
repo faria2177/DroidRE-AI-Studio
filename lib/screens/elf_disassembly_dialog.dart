@@ -3,6 +3,8 @@ import 'package:flutter/services.dart';
 
 import '../services/elf_disassembly_inspector.dart';
 import '../services/elf_symbol_inspector.dart';
+import '../services/native_branch_references.dart';
+import 'native_extended_dialog.dart';
 
 class ElfDisassemblyDialog extends StatefulWidget {
   const ElfDisassemblyDialog({
@@ -45,7 +47,7 @@ class _ElfDisassemblyDialogState extends State<ElfDisassemblyDialog> {
   Widget build(BuildContext context) {
     final size = MediaQuery.sizeOf(context);
     return AlertDialog(
-      title: Text('ARM64: ${widget.label}', maxLines: 2, overflow: TextOverflow.ellipsis),
+      title: Text('Native: ${widget.label}', maxLines: 2, overflow: TextOverflow.ellipsis),
       content: SizedBox(
         width: size.width > 780 ? 690 : size.width - 92,
         height: size.height * 0.58,
@@ -59,6 +61,7 @@ class _ElfDisassemblyDialogState extends State<ElfDisassemblyDialog> {
               return SelectableText('Disassembly unavailable: ${snapshot.error}');
             }
             final page = snapshot.data!;
+            final branches = NativeBranchReferences.outgoing(page.instructions);
             return Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
@@ -68,6 +71,7 @@ class _ElfDisassemblyDialogState extends State<ElfDisassemblyDialog> {
                 Text('Bytes ${page.offset}–${page.nextOffset} of ${page.rangeBytes} · '
                     '${page.unsupported} unsupported words'),
                 Text('ELF offset: 0x${page.fileOffset.toRadixString(16)}'),
+                Text('${branches.length} direct branch targets on this page'),
                 if (page.trailingBytes != 0)
                   Text('${page.trailingBytes} trailing bytes do not form an instruction.'),
                 const SizedBox(height: 8),
@@ -103,7 +107,12 @@ class _ElfDisassemblyDialogState extends State<ElfDisassemblyDialog> {
           },
         ),
       ),
-      actions: [TextButton(onPressed: () => Navigator.pop(context),
+      actions: [
+        TextButton(onPressed: () => showDialog<void>(context: context,
+          builder: (_) => NativeExtendedDialog(apkPath: widget.apkPath,
+            entryName: widget.entryName, sectionIndex: widget.sectionIndex,
+            function: widget.function)), child: const Text('Native analysis / LLVM')),
+        TextButton(onPressed: () => Navigator.pop(context),
           child: const Text('Close'))],
     );
   }
