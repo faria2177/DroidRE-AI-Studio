@@ -424,7 +424,7 @@ class _ProjectWorkspaceScreenState extends State<ProjectWorkspaceScreen> {
           setState(() => _exitConfirmed = true);
           WidgetsBinding.instance.addPostFrameCallback((_) {
             if (mounted) {
-              Navigator.of(context).pop();
+              Navigator.of(this.context).pop();
             }
           });
         }
