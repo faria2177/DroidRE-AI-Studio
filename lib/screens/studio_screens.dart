@@ -15,6 +15,9 @@ import 'recovered_folder_browser.dart';
 import 'apk_asset_editor_screen.dart';
 import 'apk_security_screen.dart';
 import 'apktool_workspace_screen.dart';
+import 'jadx_recovery_screen.dart';
+import '../services/framework_recovery_index.dart';
+import 'dart:convert';
 
 class StudioShell extends StatefulWidget {
   const StudioShell({super.key, required this.controller});
@@ -1241,6 +1244,35 @@ class _ToolsScreenState extends State<ToolsScreen> {
                     ApkSecurityScreen(active: widget.report!, projects: widget.controller.projects,
                         comparison: comparison))),
           )),
+        const SizedBox(height: 12),
+        Card(child: ListTile(
+          leading: const Icon(Icons.code),
+          title: const Text('JADX Java Source Recovery'),
+          subtitle: const Text('Windows · external trusted JADX distribution'),
+          onTap: !Platform.isWindows || widget.report == null ||
+              !widget.report!.fileName.toLowerCase().endsWith('.apk') ? null : () =>
+              Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) =>
+                JadxRecoveryScreen(report: widget.report!))),
+        )),
+        Card(child: ListTile(
+          leading: const Icon(Icons.account_tree),
+          title: const Text('Framework Recovery Index'),
+          subtitle: const Text('Local DEX, Flutter, React Native, Unity and NativeScript hints'),
+          onTap: widget.report == null ? null : () {
+            final index = FrameworkRecoveryIndex.build(widget.report!);
+            final text = const JsonEncoder.withIndent('  ').convert(index);
+            showDialog<void>(context: context, builder: (context) => AlertDialog(
+              title: const Text('Framework evidence'),
+              content: SizedBox(width: 660, height: MediaQuery.sizeOf(context).height * 0.55,
+                child: SingleChildScrollView(child: SelectableText(text))),
+              actions: [
+                TextButton(onPressed: () => Clipboard.setData(ClipboardData(text: text)),
+                  child: const Text('Copy JSON')),
+                TextButton(onPressed: () => Navigator.pop(context), child: const Text('Close')),
+              ],
+            ));
+          },
+        )),
         const SizedBox(height: 12),
         Text('Source Recovery — paged export',
             style: Theme.of(context).textTheme.titleMedium),
