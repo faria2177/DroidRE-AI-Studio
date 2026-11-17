@@ -16,6 +16,8 @@ import 'apk_asset_editor_screen.dart';
 import 'apk_security_screen.dart';
 import 'apktool_workspace_screen.dart';
 import 'jadx_recovery_screen.dart';
+import 'project_context_dialog.dart';
+import 'package:file_picker/file_picker.dart';
 import '../services/framework_recovery_index.dart';
 import 'dart:convert';
 
@@ -93,6 +95,7 @@ class _StudioShellState extends State<StudioShell> {
           AiStudioScreen(
             key: ValueKey(_aiDraft),
             initialPrompt: _aiDraft,
+            report: widget.controller.active,
           ),
           ToolsScreen(
             controller: widget.controller,
@@ -750,9 +753,10 @@ class _SectionList extends StatelessWidget {
 }
 
 class AiStudioScreen extends StatefulWidget {
-  const AiStudioScreen({super.key, this.initialPrompt = ''});
+  const AiStudioScreen({super.key, this.initialPrompt = '', this.report});
 
   final String initialPrompt;
+  final ApkReport? report;
 
   @override
   State<AiStudioScreen> createState() => _AiStudioScreenState();
@@ -791,6 +795,29 @@ class _AiStudioScreenState extends State<AiStudioScreen> {
     fallbackModel.dispose();
     service.close();
     super.dispose();
+  }
+
+  Future<void> _contextSearch({bool chooseFolder = false}) async {
+    String? folder = widget.report?.recoveredFolderPath;
+    String? uri = widget.report?.recoveredFolderUri;
+    if (chooseFolder) {
+      folder = await FilePicker.platform.getDirectoryPath(
+        dialogTitle: 'Choose recovered source folder');
+      uri = null;
+    }
+    if (!mounted || (folder == null && uri == null)) {
+      return;
+    }
+    final draft = await showDialog<String>(context: context,
+      builder: (_) => ProjectContextDialog(folderPath: folder, folderUri: uri));
+    if (mounted && draft != null) {
+      setState(() {
+        promptController.text = draft;
+        consentToSendCode = false;
+        fallbackConsent = false;
+        output = '';
+      });
+    }
   }
 
   Future<void> _discover({bool fallback = false}) async {
@@ -873,6 +900,12 @@ class _AiStudioScreenState extends State<AiStudioScreen> {
         const SizedBox(height: 6),
         const Text('Bring your own API key. Whole APK files are never uploaded '
             'by this screen. Only the visible prompt is sent when you press Send.'),
+        if (widget.report?.recoveredFolderPath != null || widget.report?.recoveredFolderUri != null)
+          OutlinedButton.icon(onPressed: busy ? null : () => _contextSearch(),
+            icon: const Icon(Icons.search), label: const Text('Search active recovered project')),
+        if (Platform.isWindows)
+          OutlinedButton.icon(onPressed: busy ? null : () => _contextSearch(chooseFolder: true),
+            icon: const Icon(Icons.folder_open), label: const Text('Search JADX / local source folder')),
         const SizedBox(height: 18),
         DropdownButtonFormField<AiEndpoint>(
           initialValue: endpoint,
