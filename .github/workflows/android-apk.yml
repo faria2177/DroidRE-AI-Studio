@@ -1,7 +1,12 @@
-name: Android ABI APKs (testing only)
+name: Android ABI APKs and AAB (testing only)
 
 on:
   workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'pubspec.yaml'
+      - '.github/workflows/android-apk.yml'
 
 permissions:
   contents: read
@@ -23,22 +28,30 @@ jobs:
           cache: true
       - run: flutter create . --platforms=android --org com.jahid --project-name droidre_ai_studio
       - run: flutter pub get
+      - run: dart format lib test
       - run: flutter analyze
       - run: flutter test
       - name: Build ABI-specific test artifacts
         run: flutter build apk --release --split-per-abi
+      - name: Build test-signed Android app bundle
+        run: flutter build appbundle --release
       - name: Verify and hash artifacts
         run: |
           test -s build/app/outputs/flutter-apk/app-armeabi-v7a-release.apk
           test -s build/app/outputs/flutter-apk/app-arm64-v8a-release.apk
-          cd build/app/outputs/flutter-apk
-          sha256sum *-release.apk > SHA256SUMS.txt
+          test -s build/app/outputs/bundle/release/app-release.aab
+          mkdir -p dist/android-test
+          cp build/app/outputs/flutter-apk/*-release.apk dist/android-test/
+          cp build/app/outputs/bundle/release/app-release.aab dist/android-test/
+          cd dist/android-test
+          sha256sum *.apk *.aab > SHA256SUMS.txt
       - uses: actions/upload-artifact@v4
         with:
-          name: droidre-abi-apks-TEST-DEBUG-SIGNED
+          name: droidre-abi-apks-aab-TEST-DEBUG-SIGNED
           path: |
-            build/app/outputs/flutter-apk/*-release.apk
-            build/app/outputs/flutter-apk/SHA256SUMS.txt
+            dist/android-test/*-release.apk
+            dist/android-test/app-release.aab
+            dist/android-test/SHA256SUMS.txt
           if-no-files-found: error
           retention-days: 14
 
