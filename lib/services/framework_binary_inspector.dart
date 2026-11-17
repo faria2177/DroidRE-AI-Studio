@@ -6,6 +6,7 @@ import 'package:crypto/crypto.dart';
 
 import 'package_binary_reader.dart';
 import 'framework_version_mapping.dart';
+import 'hermes76_inspector.dart';
 
 /// Narrow format inspection; no JavaScript, native or managed code runs.
 class FrameworkBinaryInspector {
@@ -90,7 +91,16 @@ class FrameworkBinaryInspector {
       if (count == 0 || globalIndex >= count) {
         throw const FormatException('Invalid Hermes function header counts');
       }
+      Map<String, Object?>? disassembly;
+      if (u32(8) == 76) {
+        try {
+          disassembly = Hermes76Inspector.inspect(bytes);
+        } on FormatException catch (e) {
+          disassembly = {'status': 'unsupported-layout', 'warning': e.message};
+        }
+      }
       return {...result, 'kind': 'hermes-bytecode', 'version': u32(8),
+        if (disassembly != null) 'version76Preview': disassembly,
         'declaredBytes': declared, 'sourceHashHeader': _hex(bytes.sublist(12, 32)),
         'globalCodeIndex': globalIndex, 'functionCountHeader': count,
         'legacyHbctoolCompatibleVersion': FrameworkVersionMapping.hermesLegacyVersions.contains(u32(8)),
