@@ -7,6 +7,7 @@ import 'package:path/path.dart' as p;
 
 import '../services/local_export_service.dart';
 import '../services/project_workspace_service.dart';
+import '../services/project_symbol_index.dart';
 import '../services/project_context_search.dart';
 import '../services/saf_source_recovery_service.dart';
 
@@ -80,6 +81,8 @@ class _ProjectWorkspaceScreenState extends State<ProjectWorkspaceScreen> {
   String? _root, _uri;
   List<String> _paths = [];
   final _tabs = <_WorkspaceTab>[];
+  final _bookmarks = <(String, int)>[];
+  final _history = <(String, int)>[];
   int _active = -1;
   bool _busy = false, _partial = false, _exitConfirmed = false, _askingExit = false;
   String _message = '', _filter = '';
@@ -161,6 +164,8 @@ class _ProjectWorkspaceScreenState extends State<ProjectWorkspaceScreen> {
           tab.controller.dispose();
         }
         _tabs.clear();
+        _bookmarks.clear();
+        _history.clear();
         _active = -1;
         _root = canonical;
         _uri = null;
@@ -211,6 +216,12 @@ class _ProjectWorkspaceScreenState extends State<ProjectWorkspaceScreen> {
         _tabs.add(_WorkspaceTab(path, text));
         _active = _tabs.length - 1;
       });
+    }
+    final visit = (path, line ?? 1);
+    _history.remove(visit);
+    _history.insert(0, visit);
+    if (_history.length > 100) {
+      _history.removeLast();
     }
     if (line != null) {
       final controller = _current!.controller;
@@ -326,6 +337,70 @@ class _ProjectWorkspaceScreenState extends State<ProjectWorkspaceScreen> {
     }
   }
 
+  Future<void> _symbols() async {
+    final report = await ProjectSymbolIndex.scan(_paths, root: _root, uri: _uri);
+    if (!mounted) {
+      return;
+    }
+    var query = '';
+    final selected = await showDialog<ProjectSymbol>(context: context,
+      builder: (context) => StatefulBuilder(builder: (context, refresh) {
+        final symbols = report.$1.where((s) =>
+            '${s.name} ${s.path}'.toLowerCase().contains(query.toLowerCase())).toList();
+        return AlertDialog(title: Text('Declaration hints${report.$2 || _partial ? ' · Partial' : ''}'),
+          content: SizedBox(width: 650, height: 420, child: Column(children: [
+            TextField(onChanged: (v) => refresh(() => query = v),
+              decoration: const InputDecoration(labelText: 'Find symbol')),
+            Expanded(child: ListView.builder(itemCount: symbols.length,
+              itemBuilder: (context, i) {
+                final s = symbols[i];
+                return ListTile(title: Text('${s.kind} ${s.name}'),
+                  subtitle: Text('${s.path}:${s.line}'),
+                  onTap: () => Navigator.pop(context, s));
+              })),
+          ])),
+          actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text('Close'))]);
+      }));
+    if (mounted && selected != null) {
+      await _open(selected.path, line: selected.line);
+    }
+  }
+
+  void _bookmark() {
+    final tab = _current!;
+    final at = tab.controller.selection.baseOffset.clamp(0, tab.controller.text.length).toInt();
+    final line = '\n'.allMatches(tab.controller.text.substring(0, at)).length + 1;
+    final item = (tab.path, line);
+    setState(() {
+      if (_bookmarks.contains(item)) {
+        _bookmarks.remove(item);
+        _message = 'Bookmark removed';
+      } else if (_bookmarks.length < 100) {
+        _bookmarks.add(item);
+        _message = 'Bookmarked ${tab.path}:$line';
+      } else {
+        _message = 'Bookmark limit reached';
+      }
+    });
+  }
+
+  Future<void> _locations(bool bookmarks) async {
+    final locations = bookmarks ? _bookmarks : _history;
+    final selected = await showDialog<(String, int)>(context: context,
+      builder: (context) => AlertDialog(
+        title: Text(bookmarks ? 'Session bookmarks' : 'Navigation history'),
+        content: SizedBox(width: 600, height: 320, child: ListView.builder(
+          itemCount: locations.length,
+          itemBuilder: (context, i) => ListTile(
+            title: Text('${locations[i].$1}:${locations[i].$2}'),
+            onTap: () => Navigator.pop(context, locations[i])))),
+        actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text('Close'))],
+      ));
+    if (mounted && selected != null) {
+      await _open(selected.$1, line: selected.$2);
+    }
+  }
+
   List<Widget> _tree() {
     final root = _TreeNode('', '', false);
     for (final path in _paths.where((s) => s.toLowerCase().contains(_filter.toLowerCase()))) {
@@ -394,6 +469,8 @@ class _ProjectWorkspaceScreenState extends State<ProjectWorkspaceScreen> {
             onSubmitted: (_) => _findNext())),
           IconButton(onPressed: _busy ? null : _findNext, tooltip: 'Find next',
             icon: const Icon(Icons.search)),
+          IconButton(onPressed: _busy ? null : _bookmark, tooltip: 'Toggle line bookmark',
+            icon: const Icon(Icons.bookmark_add_outlined)),
           if (_editable)
             IconButton(onPressed: _busy ? null : () => _task(_export),
               tooltip: 'Export edited copy', icon: const Icon(Icons.save_alt)),
@@ -434,6 +511,18 @@ class _ProjectWorkspaceScreenState extends State<ProjectWorkspaceScreen> {
           if (Platform.isWindows)
             IconButton(onPressed: _busy ? null : () => _task(_choose),
               icon: const Icon(Icons.folder_open), tooltip: 'Open source folder'),
+          if (hasRoot)
+            PopupMenuButton<String>(enabled: !_busy, onSelected: (v) {
+              if (v == 'symbols') {
+                _task(_symbols);
+              } else {
+                _task(() => _locations(v == 'bookmarks'));
+              }
+            }, itemBuilder: (_) => const [
+              PopupMenuItem(value: 'symbols', child: Text('Find declarations')),
+              PopupMenuItem(value: 'bookmarks', child: Text('Session bookmarks')),
+              PopupMenuItem(value: 'history', child: Text('Navigation history')),
+            ]),
           if (hasRoot)
             IconButton(onPressed: _busy ? null : () => _task(_reload),
               icon: const Icon(Icons.refresh), tooltip: 'Refresh files'),
