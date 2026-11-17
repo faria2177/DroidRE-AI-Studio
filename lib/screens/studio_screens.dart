@@ -17,6 +17,7 @@ import 'apk_security_screen.dart';
 import 'apktool_workspace_screen.dart';
 import 'jadx_recovery_screen.dart';
 import 'project_context_dialog.dart';
+import 'semantic_context_dialog.dart';
 import 'adb_device_screen.dart';
 import 'framework_binary_screen.dart';
 import 'universal_binary_screen.dart';
@@ -826,6 +827,24 @@ class _AiStudioScreenState extends State<AiStudioScreen> {
     }
   }
 
+  Future<void> _semanticSearch() async {
+    final root = await FilePicker.platform.getDirectoryPath(
+      dialogTitle: 'Choose authorized recovered source folder');
+    if (!mounted || root == null) {
+      return;
+    }
+    final draft = await showDialog<String>(context: context,
+      builder: (_) => SemanticContextDialog(root: root));
+    if (mounted && draft != null) {
+      setState(() {
+        promptController.text = draft;
+        consentToSendCode = false;
+        fallbackConsent = false;
+        output = '';
+      });
+    }
+  }
+
   Future<void> _discover({bool fallback = false}) async {
     final selected = fallback ? fallbackEndpoint : endpoint;
     if (busy || selected == null) {
@@ -912,6 +931,9 @@ class _AiStudioScreenState extends State<AiStudioScreen> {
         if (Platform.isWindows)
           OutlinedButton.icon(onPressed: busy ? null : () => _contextSearch(chooseFolder: true),
             icon: const Icon(Icons.folder_open), label: const Text('Search JADX / local source folder')),
+        if (Platform.isWindows)
+          OutlinedButton.icon(onPressed: busy ? null : _semanticSearch,
+            icon: const Icon(Icons.psychology_outlined), label: const Text('Local semantic code search (Ollama)')),
         const SizedBox(height: 18),
         DropdownButtonFormField<AiEndpoint>(
           initialValue: endpoint,

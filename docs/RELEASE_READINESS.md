@@ -6,7 +6,7 @@ not a percentage estimate of verified functionality.
 | Phase | Implemented scope | Remaining gate |
 | --- | --- | --- |
 | 22 | Declaration hints, app-local bookmarks/history | Semantic index, version history, device UI |
-| 23 | Ranked multi-term local evidence and reviewed AI prompt | Embedding retrieval, genuine agent workflows, provider tests |
+| 23 | Ranked local evidence, bounded Ollama vector retrieval and reviewed AI prompt | Real Ollama validation, persistent index, genuine agent workflows, provider tests |
 | 24 | Manual Ghidra function export script | Compile/run with installed Ghidra, integrated native CFG |
 | 25 | Dart classic snapshot hash evidence | Version database, object pool, verified per-VM decoder |
 | 26 | Framework member export and manual trusted recovery helper | Version-specific Hermes/IL2CPP recovery validation |
