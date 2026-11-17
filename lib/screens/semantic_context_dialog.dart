@@ -19,6 +19,7 @@ class _SemanticContextDialogState extends State<SemanticContextDialog> {
   SemanticResult? _result;
   OllamaEmbeddingService? _client;
   bool _consent = false, _busy = false, _persist = false, _hybrid = true;
+  bool _cancelled = false;
   String _message = '';
 
   @override
@@ -37,18 +38,19 @@ class _SemanticContextDialogState extends State<SemanticContextDialog> {
       setState(() => _message = 'Enter a question up to 600 characters.');
       return;
     }
+    final persist = _persist;
+    final hybrid = _hybrid;
     final client = OllamaEmbeddingService(_model);
     _client = client;
     setState(() {
       _busy = true;
+      _cancelled = false;
       _result = null;
       _chosen.clear();
       _message = '';
     });
     try {
       final root = await Directory(widget.root).resolveSymbolicLinks();
-      final persist = _persist;
-      final hybrid = _hybrid;
       final store = persist ? await SemanticVectorCache.appLocal() : null;
       final digest = persist ? await client.fingerprint() : null;
       final previous = store != null
@@ -56,23 +58,23 @@ class _SemanticContextDialogState extends State<SemanticContextDialog> {
       final incremental = IncrementalEmbeddings(previous, client.embed);
       final result = await SemanticCodeSearch.search(root, question, client.embed,
           documentEmbed: incremental.embed, hybrid: hybrid,
-          cancelled: () => !mounted || _client != client);
-      if (store != null) {
+          cancelled: () => !mounted || _cancelled);
+      if (store != null && !_cancelled && mounted) {
         if (await client.fingerprint() != digest) {
           throw const FormatException('Model changed during search; retry');
         }
-        if (mounted && _client == client) {
+        if (mounted && !_cancelled) {
           await store.save(root, client.model, digest!, incremental.current);
         }
       }
-      if (mounted && _client == client) {
+      if (mounted && !_cancelled) {
         setState(() {
           _result = result;
           _message = '${incremental.reused} reused · ${incremental.embedded} new chunk vectors';
         });
       }
     } catch (e) {
-      if (mounted && _client == client) {
+      if (mounted && !_cancelled) {
         setState(() => _message = '$e');
       }
     } finally {
@@ -89,9 +91,8 @@ class _SemanticContextDialogState extends State<SemanticContextDialog> {
   void _cancel() {
     _client?.close();
     setState(() {
-      _client = null;
-      _busy = false;
-      _message = 'Search cancelled';
+      _cancelled = true;
+      _message = 'Cancelling; any current disk operation may finish';
     });
   }
 
@@ -136,6 +137,8 @@ class _SemanticContextDialogState extends State<SemanticContextDialog> {
       title: const Text('Local semantic code retrieval'),
       content: SizedBox(width: 700, height: MediaQuery.sizeOf(context).height * 0.67,
         child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+          Flexible(flex: 3, child: SingleChildScrollView(child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch, children: [
           const Text('Ollama loopback: samples up to 32 files / 64 chunks. '
               'Use a trusted local server with cloud disabled. '
               'Sampled code and question are sent to that server. Partial results.'),
@@ -170,13 +173,15 @@ class _SemanticContextDialogState extends State<SemanticContextDialog> {
             onChanged: _busy ? null : (v) => setState(() => _persist = v ?? false)),
           TextButton(onPressed: _busy ? null : _clearCache,
             child: const Text('Clear workspace/model cache')),
-          OutlinedButton(onPressed: _busy ? (_client != null ? _cancel : null) : !_consent ? null : _search,
-            child: Text(_busy ? 'Cancel search' : 'Find relevant code')),
+          OutlinedButton(onPressed: _busy ? (_client != null && !_cancelled ? _cancel : null) : !_consent ? null : _search,
+            child: Text(_cancelled && _busy ? 'Cancelling…' : _busy ? 'Cancel search' : 'Find relevant code')),
           if (_busy) const LinearProgressIndicator(),
           if (result != null)
             Text('${result.chunks} sampled chunks · ${result.filesRead} files · ${_chosen.length} selected'),
           if (_message.isNotEmpty) Text(_message, maxLines: 3, overflow: TextOverflow.ellipsis),
-          Expanded(child: ListView.builder(itemCount: result?.hits.length ?? 0,
+          ]))),
+          const Divider(),
+          Expanded(flex: 2, child: ListView.builder(itemCount: result?.hits.length ?? 0,
             itemBuilder: (context, i) {
               final hit = result!.hits[i];
               final item = hit.evidence;
