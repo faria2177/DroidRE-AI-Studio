@@ -124,3 +124,15 @@ an authorized key. See docs/APK_EDITING.md for usage and limits.
 ## Windows Apktool workspace
 
 User-selected trusted Java and Apktool bridge decodes Smali and XML into a new local workspace. Existing bounded text files can be edited and rebuilt via external Apktool, with logs and unsigned output saved separately. No Android assembler, automatic signing or bundled Apktool. Real external round-trip validation is pending.
+
+## Later development milestones (12–30)
+
+The older feature notes above describe earlier milestones; use the module-specific
+information and [release readiness](RELEASE_READINESS.md) for the current scope.
+Source changes are not evidence of runtime validation. External Windows tools
+are separately installed and not sandboxed. No full Flutter/Hermes/native
+source recovery, full cross-platform APK rebuild, or autonomous AI agent is claimed.
+The 0.8.0 preview adds bounded local metadata, workspace, ranked evidence retrieval,
+external optional recovery helpers, split-member export, ADB snapshots and a
+streaming raw-binary viewer. Production signing, device integration and formal
+security review remain release blockers.

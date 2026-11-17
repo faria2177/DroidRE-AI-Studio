@@ -2,7 +2,7 @@
 
 An **Android-first Flutter project** for offline APK inspection and optional AI code explanations.
 
-**Current version:** 0.7.0 — indexed Multi-DEX static call graph, offset-preserving Java-like pseudocode, Google OAuth configuration in Settings, Dalvik disassembly, binary XML and opt-in AI review; not a full JADX or Apktool replacement.
+**Current version:** 0.8.0 development preview — Android/Windows local reverse-engineering and optional AI. Bounded analysis and external recovery adapters; not a full original-source reconstruction product. See [Release readiness](docs/RELEASE_READINESS.md).
 
 ## What works today
 
@@ -87,7 +87,7 @@ locations, and privacy details.
 
 ## Android development build
 
-The latest source-recovery changes are packaged as development version **0.7.0+8**.
+The latest source-recovery changes are packaged as development version **0.8.0+9**.
 GitHub Actions **Flutter CI and Debug APK** runs `flutter analyze`, `flutter test`,
 and then builds an Android debug APK from `main`. The artifact is signed
 with the development debug key; it is for testing, not Play Store release.
@@ -162,3 +162,13 @@ Windows x64 build and one-click per-user installer workflow: see [Windows instal
 ## Windows Smali & Resource Workspace
 
 Tools → Smali & Resource Workspace: decode, edit existing Smali/XML and rebuild an unsigned APK using separately installed Java and trusted Apktool. See [workspace guide](docs/APKTOOL_WORKSPACE.md). External tooling is not sandboxed or included in the installer.
+
+## Expanded development preview (phases 12–30)
+
+- [Native LLVM and XREF](docs/NATIVE_EXTENDED_ANALYSIS.md) · [Flutter structure](docs/FLUTTER_STRUCTURE.md) · [JADX](docs/JADX_RECOVERY.md)
+- [AI context](docs/PROJECT_CONTEXT.md) · [ADB](docs/ADB_INSPECTION.md) · [Framework binaries](docs/FRAMEWORK_BINARY.md)
+- [Universal binary](docs/UNIVERSAL_BINARY.md) · [PE directories](docs/PE_DIRECTORY_ANALYSIS.md) · [.NET and ILSpy](docs/DOTNET_RECOVERY.md)
+- [Project workspace](docs/PROJECT_WORKSPACE.md) · [Project intelligence](docs/PROJECT_INTELLIGENCE.md) · [AI ranked retrieval](docs/AI_PROJECT_INTELLIGENCE.md)
+- [Optional Ghidra](docs/GHIDRA_RECOVERY.md) · [Dart hash evidence](docs/DART_VERSION_EVIDENCE.md) · [Framework/split export](docs/FRAMEWORK_AND_SPLIT_EXPORT.md)
+- [ADB runtime monitor](docs/ADB_RUNTIME_MONITOR.md) · [Large binary viewer](docs/LARGE_BINARY.md)
+- [User manual](docs/USER_MANUAL.md) · [Release gates and remaining work](docs/RELEASE_READINESS.md)
