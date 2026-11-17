@@ -30,6 +30,14 @@ An **Android-first Flutter project** for offline APK inspection and optional AI 
 
 See [Feature status](docs/FEATURE_STATUS.md) for precise limitations.
 
+## APK asset editing
+
+Tools → APK Asset Editor supports one existing UTF-8 text asset per export.
+The imported source is hash-checked and unchanged. Output is an unsigned
+ZIP-repacked copy, with retained payload hashes verified. The Windows SDK
+signing helper is documented in [APK editing](docs/APK_EDITING.md).
+On-device signing and full compiled resource rebuilding remain planned.
+
 ## Flutter AOT snapshot evidence
 
 Open ELF Explorer, select libapp.so, then Analyze Flutter AOT snapshots.

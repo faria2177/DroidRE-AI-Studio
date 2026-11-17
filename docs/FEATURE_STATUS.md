@@ -26,7 +26,7 @@ Do not mistake a visible tool card for a completed reverse-engineering engine.
 | OpenRouter/OpenAI/DeepSeek/Groq AI | Working API adapter design | Requires a valid user API key/model and network; no secrets persisted |
 | AI model catalog / fallback | Planned | No automatic switching claimed |
 | Security audit / version diff | Planned | UI links explicitly labeled roadmap |
-| Smali edit/rebuild/sign | Planned | Only authorized editing will be supported |
+| APK asset edit/repack | Bounded unsigned export | One existing UTF-8 asset, retained file payload hash checks, stale signature files removed. Windows SDK signing helper provided; on-device signing and Smali rebuild remain planned. |
 | Local LLM / optional worker | Planned | Separate opt-in architecture |
 | GitHub CI / APK workflows | Implemented as workflow definitions | Actual result depends on Actions run |
 
@@ -79,6 +79,13 @@ Bounded raw header samples and data signature evidence are mapped to file
 and virtual addresses. No snapshot object deserialization, inferred symbol
 locations, version matching, or original Dart source recovery.
 
+## Authorized APK asset editing
+
+48 MiB input, 64 MiB expanded/output, 512 KiB per text asset. Payload
+hashes are checked after repacking; ZIP metadata and signatures are not
+preserved. External Windows SDK helper aligns, signs and verifies with
+an authorized key. See docs/APK_EDITING.md for usage and limits.
+
 ## Known limitations
 
 - The source recovery ZIP produces non-compilable/non-assemblable text previews only. See `docs/SOURCE_RECOVERY.md` for bounds, privacy, and omitted source types.
@@ -87,7 +94,7 @@ locations, version matching, or original Dart source recovery.
 - This milestone provides **real APK archive/manifest and bounded DEX/ELF header inspection**, not full source recovery.
 - Large archives are inspected with streaming ZIP structures, but extracting the
   manifest can still use up to 4 MiB. Files over 1 GiB are refused.
-- APK signature verification is **not yet implemented**.
+- In-app APK signature verification is not implemented. The Windows helper uses SDK apksigner verify and zipalign checks externally.
 - DEX method names and prototype descriptors are decoded. Standard Dalvik opcode
   operands are decoded; advanced/optimized instructions and semantic analysis
   remain incomplete. Modified UTF-8 may not be fully decoded.

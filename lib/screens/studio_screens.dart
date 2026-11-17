@@ -9,6 +9,7 @@ import '../services/source_recovery_bundle.dart';
 import 'binary_explorer_tabs.dart';
 import 'resource_explorer_tab.dart';
 import 'recovered_folder_browser.dart';
+import 'apk_asset_editor_screen.dart';
 
 class StudioShell extends StatefulWidget {
   const StudioShell({super.key, required this.controller});
@@ -971,7 +972,7 @@ class _ToolsScreenState extends State<ToolsScreen> {
       (Icons.computer, 'Full multi-architecture ELF disassembler', 'Native engine phase'),
       (Icons.compare_arrows, 'Version diff', 'Planned'),
       (Icons.fact_check_outlined, 'Security audit', 'Planned'),
-      (Icons.draw_outlined, 'Rebuild and sign', 'Authorized edit phase'),
+      (Icons.draw_outlined, 'On-device signing / full rebuild', 'Authorized edit phase'),
       (Icons.smart_toy_outlined, 'Local AI', 'Optional model phase'),
     ];
     return ListView(
@@ -1000,6 +1001,16 @@ class _ToolsScreenState extends State<ToolsScreen> {
             onTap: widget.onAnalyze,
           ),
         ),
+        const SizedBox(height: 12),
+        Card(child: ListTile(
+          leading: const Icon(Icons.edit),
+          title: const Text('APK Asset Editor'),
+          subtitle: const Text('Edit an existing text asset and export an unsigned APK copy'),
+          trailing: const Icon(Icons.chevron_right),
+          onTap: widget.report == null ? null : () => Navigator.of(context).push(
+            MaterialPageRoute<void>(builder: (_) => ApkAssetEditorScreen(report: widget.report!)),
+          ),
+        )),
         const SizedBox(height: 12),
         Text('Source Recovery — paged export',
             style: Theme.of(context).textTheme.titleMedium),
