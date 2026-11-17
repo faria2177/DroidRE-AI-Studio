@@ -17,6 +17,7 @@ import 'apk_security_screen.dart';
 import 'apktool_workspace_screen.dart';
 import 'jadx_recovery_screen.dart';
 import 'project_context_dialog.dart';
+import 'adb_device_screen.dart';
 import 'package:file_picker/file_picker.dart';
 import '../services/framework_recovery_index.dart';
 import 'dart:convert';
@@ -1305,6 +1306,14 @@ class _ToolsScreenState extends State<ToolsScreen> {
               ],
             ));
           },
+        )),
+        const SizedBox(height: 12),
+        Card(child: ListTile(
+          leading: const Icon(Icons.usb),
+          title: const Text('ADB Device Inspector'),
+          subtitle: const Text('Windows · authorized device and selected app logs'),
+          onTap: Platform.isWindows ? () => Navigator.of(context).push(
+            MaterialPageRoute<void>(builder: (_) => const AdbDeviceScreen())) : null,
         )),
         const SizedBox(height: 12),
         Text('Source Recovery — paged export',
