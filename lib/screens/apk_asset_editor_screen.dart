@@ -1,7 +1,7 @@
-import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 
 import '../models/apk_report.dart';
+import '../services/local_export_service.dart';
 import '../services/apk_asset_editor.dart';
 
 class ApkAssetEditorScreen extends StatefulWidget {
@@ -81,10 +81,11 @@ class _ApkAssetEditorScreenState extends State<ApkAssetEditorScreen> {
       }
       final clean = widget.report.fileName.replaceAll(RegExp(r'[^A-Za-z0-9_-]'), '_');
       final base = clean.length > 48 ? clean.substring(0, 48) : clean;
-      final saved = await FilePicker.platform.saveFile(
+      final saved = await LocalExportService.saveFile(
         dialogTitle: 'Save a NEW unsigned APK',
         fileName: '$base-edited-unsigned.apk',
         bytes: result.bytes,
+        protectedPath: widget.report.localPath,
       );
       if (mounted) {
         setState(() => _status = saved == null ? 'Export cancelled' :

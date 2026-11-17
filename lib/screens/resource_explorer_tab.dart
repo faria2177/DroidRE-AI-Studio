@@ -1,10 +1,10 @@
 import 'dart:convert';
 import 'dart:typed_data' as typed;
 
-import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 
 import '../models/apk_report.dart';
+import '../services/local_export_service.dart';
 import '../services/resource_inspector.dart';
 import '../services/arsc_reference_resolver.dart';
 import '../services/arsc_style_resolver.dart';
@@ -287,7 +287,7 @@ class _CompiledTableViewerState extends State<_CompiledTableViewer> {
         comparison, widget.summary.values);
     final filename = '${report.fileStem}.${csv ? 'csv' : 'json'}';
     try {
-      final result = await FilePicker.platform.saveFile(
+      final result = await LocalExportService.saveFile(
         dialogTitle: 'Save resource comparison',
         fileName: filename,
         bytes: typed.Uint8List.fromList(

@@ -2,9 +2,9 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:file_picker/file_picker.dart';
 
 import '../models/apk_report.dart';
+import '../services/local_export_service.dart';
 import '../services/ai_chat_service.dart';
 import '../services/google_account_service.dart';
 import '../services/studio_controller.dart';
@@ -1140,7 +1140,7 @@ class _ToolsScreenState extends State<ToolsScreen> {
       final filename = '${name.isEmpty ? 'recovered-app' : name}'
           '-source-preview-${cursor.dexIndex + 1}-'
           '${cursor.classIndex + 1}-${cursor.methodIndex + 1}.zip';
-      final saved = await FilePicker.platform.saveFile(
+      final saved = await LocalExportService.saveFile(
         dialogTitle: 'Save read-only source recovery bundle',
         fileName: filename,
         bytes: bundle.zipBytes,
