@@ -18,6 +18,7 @@ import 'apktool_workspace_screen.dart';
 import 'jadx_recovery_screen.dart';
 import 'project_context_dialog.dart';
 import 'adb_device_screen.dart';
+import 'framework_binary_screen.dart';
 import 'package:file_picker/file_picker.dart';
 import '../services/framework_recovery_index.dart';
 import 'dart:convert';
@@ -1314,6 +1315,14 @@ class _ToolsScreenState extends State<ToolsScreen> {
           subtitle: const Text('Windows · authorized device and selected app logs'),
           onTap: Platform.isWindows ? () => Navigator.of(context).push(
             MaterialPageRoute<void>(builder: (_) => const AdbDeviceScreen())) : null,
+        )),
+        const SizedBox(height: 12),
+        Card(child: ListTile(
+          leading: const Icon(Icons.layers_outlined),
+          title: const Text('Framework Binary Inspector'),
+          subtitle: const Text('Hermes · Unity metadata · React Native · NativeScript'),
+          onTap: widget.report == null ? null : () => Navigator.of(context).push(
+            MaterialPageRoute<void>(builder: (_) => FrameworkBinaryScreen(report: widget.report!))),
         )),
         const SizedBox(height: 12),
         Text('Source Recovery — paged export',
