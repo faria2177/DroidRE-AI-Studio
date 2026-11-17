@@ -95,6 +95,7 @@ class _ProjectWorkspaceScreenState extends State<ProjectWorkspaceScreen> {
   int _active = -1;
   bool _busy = false, _partial = false, _exitConfirmed = false, _askingExit = false;
   String _message = '', _filter = '';
+  bool _showFiles = true;
   final _find = TextEditingController();
   final _global = TextEditingController();
 
@@ -280,7 +281,7 @@ class _ProjectWorkspaceScreenState extends State<ProjectWorkspaceScreen> {
   Future<void> _open(String path, {int? line}) async {
     final existing = _tabs.indexWhere((tab) => tab.path == path);
     if (existing >= 0) {
-      setState(() => _active = existing);
+      setState(() { _active = existing; _showFiles = false; });
     } else {
       if (_tabs.length >= ProjectWorkspaceService.maxTabs) {
         throw const FormatException('Close a tab first (maximum 8)');
@@ -298,6 +299,7 @@ class _ProjectWorkspaceScreenState extends State<ProjectWorkspaceScreen> {
       setState(() {
         _tabs.add(_WorkspaceTab(path, text));
         _active = _tabs.length - 1;
+        _showFiles = false;
       });
     }
     final visit = (path, line ?? 1);
@@ -366,8 +368,23 @@ class _ProjectWorkspaceScreenState extends State<ProjectWorkspaceScreen> {
     final drafts = <String, String>{for (final tab in _tabs) if (tab.dirty) tab.path: tab.controller.text};
     final bytes = await Isolate.run(() => SourceProjectImport.exportZip(root, drafts));
     if (!mounted) return;
-    final saved = await LocalExportService.saveFile(dialogTitle: 'Export source project ZIP (choose a new file)',
-      fileName: 'Android-project-edited.zip', bytes: bytes);
+    String? saved;
+    if (Platform.isWindows || Platform.isLinux || Platform.isMacOS) {
+      saved = await FilePicker.platform.saveFile(dialogTitle: 'Export source project ZIP (choose a new file)',
+        fileName: 'Android-project-edited.zip');
+      if (saved != null) {
+        final target = p.join(await File(saved).parent.resolveSymbolicLinks(), p.basename(saved));
+        final base = await Directory(root).resolveSymbolicLinks();
+        if (p.isWithin(base, target) || p.equals(base, target) ||
+            await FileSystemEntity.type(target, followLinks: false) != FileSystemEntityType.notFound) {
+          throw const FormatException('Select a new ZIP outside the imported project');
+        }
+        await LocalExportService.writeDesktopFile(target, bytes);
+      }
+    } else {
+      saved = await LocalExportService.saveFile(dialogTitle: 'Export source project ZIP (choose a new file)',
+        fileName: 'Android-project-edited.zip', bytes: bytes);
+    }
     if (mounted) setState(() => _message = saved == null ? 'Export cancelled' : 'Project ZIP exported with current drafts and saved changes.');
   }
 
@@ -618,6 +635,8 @@ class _ProjectWorkspaceScreenState extends State<ProjectWorkspaceScreen> {
             onSubmitted: (_) => _findNext())),
           IconButton(onPressed: _busy ? null : _findNext, tooltip: 'Find next',
             icon: const Icon(Icons.search)),
+        ]),
+        SingleChildScrollView(scrollDirection: Axis.horizontal, child: Row(children: [
           IconButton(onPressed: _busy ? null : () => _task(_bookmark), tooltip: 'Toggle line bookmark',
             icon: const Icon(Icons.bookmark_add_outlined)),
           if (_editable)
@@ -632,7 +651,7 @@ class _ProjectWorkspaceScreenState extends State<ProjectWorkspaceScreen> {
           if (_editable && !widget.importedSource)
             IconButton(onPressed: _busy ? null : () => _task(_export),
               tooltip: 'Export edited copy', icon: const Icon(Icons.save_alt)),
-        ]),
+        ])),
         Expanded(child: TextField(key: ValueKey(tab.path), controller: tab.controller,
           onChanged: (_) => setState(() {}),
           readOnly: !_editable || _busy, expands: true, minLines: null, maxLines: null,
@@ -711,9 +730,12 @@ class _ProjectWorkspaceScreenState extends State<ProjectWorkspaceScreen> {
                   ]);
                 }
                 return Column(children: [
-                  Flexible(flex: 2, child: _sidebar()),
+                  SegmentedButton<bool>(segments: const [
+                    ButtonSegment(value: true, label: Text('Files'), icon: Icon(Icons.folder_open)),
+                    ButtonSegment(value: false, label: Text('Editor'), icon: Icon(Icons.code)),
+                  ], selected: {_showFiles}, onSelectionChanged: (value) => setState(() => _showFiles = value.first)),
                   const Divider(height: 1),
-                  Expanded(flex: 3, child: _editor()),
+                  Expanded(child: _showFiles ? _sidebar() : _editor()),
                 ]);
               })),
         ]),

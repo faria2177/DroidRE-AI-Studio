@@ -44,7 +44,9 @@ class SourceProjectImport {
     final names = paths.map((s) => s.toLowerCase()).toList();
     final flutter = names.any((s) => s == 'pubspec.yaml' || s.endsWith('/pubspec.yaml')) &&
         names.any((s) => s.endsWith('/main.dart') || s == 'main.dart');
-    if (flutter) return 'Flutter source project';
+    if (flutter) {
+      return 'Flutter source project';
+    }
     if (names.any((s) => s.endsWith('build.gradle') || s.endsWith('build.gradle.kts')) &&
         names.any((s) => s.endsWith('androidmanifest.xml'))) {
       return names.any((s) => s.endsWith('.kt')) ? 'Android Gradle / Kotlin' :
@@ -61,7 +63,9 @@ class SourceProjectImport {
   // package archives as editable projects.
   static bool isSourceZip(String path) {
     final file = File(path);
-    if (file.lengthSync() > maxBytes) return false;
+    if (file.lengthSync() > maxBytes) {
+      return false;
+    }
     final input = InputFileStream(path);
     try {
       final archive = ZipDecoder().decodeStream(input, throwOnError: true);
@@ -80,7 +84,9 @@ class SourceProjectImport {
       throw const FormatException('Source ZIP exceeds 128 MiB');
     }
     final root = Directory(destination);
-    if (await root.exists()) throw const FormatException('Destination already exists');
+    if (await root.exists()) {
+      throw const FormatException('Destination already exists');
+    }
     final input = InputFileStream(path);
     try {
       final archive = ZipDecoder().decodeStream(input, throwOnError: true);
@@ -139,15 +145,21 @@ class SourceProjectImport {
       while (pending.isNotEmpty) {
         final directory = pending.removeLast();
         await for (final entity in directory.list(followLinks: false)) {
-          if (++entries > maxEntries) throw const FormatException('Too many source entries');
+          if (++entries > maxEntries) {
+            throw const FormatException('Too many source entries');
+          }
           final name = safePath(p.relative(entity.path, from: base).replaceAll('\\', '/'));
           if (ignored(name)) continue;
-          if (!seen.add(name.toLowerCase())) throw const FormatException('Conflicting paths');
+          if (!seen.add(name.toLowerCase())) {
+            throw const FormatException('Conflicting paths');
+          }
           if (entity is Directory) {
             pending.add(entity);
           } else if (entity is File) {
             final canonical = await entity.resolveSymbolicLinks();
-            if (!p.isWithin(base, canonical)) throw const FormatException('Source path escaped folder');
+            if (!p.isWithin(base, canonical)) {
+              throw const FormatException('Source path escaped folder');
+            }
             final size = await entity.length();
             if (++files > maxFiles || size > maxMember || size > maxBytes - total) {
               throw const FormatException('Source folder exceeds copy limits');
@@ -159,12 +171,16 @@ class SourceProjectImport {
             try {
               await for (final bytes in entity.openRead(0, size + 1)) {
                 copied += bytes.length;
-                if (copied > size) throw const FormatException('Source changed while copying');
+                if (copied > size) {
+                  throw const FormatException('Source changed while copying');
+                }
                 sink.add(bytes);
                 await sink.flush();
               }
             } finally { await sink.close(); }
-            if (copied != size) throw const FormatException('Source changed while copying');
+            if (copied != size) {
+              throw const FormatException('Source changed while copying');
+            }
             total += copied;
           } else {
             throw const FormatException('Source links are not imported');
@@ -195,7 +211,9 @@ class SourceProjectImport {
       hashes.add('$relative:$hash');
     }
     final kind = framework(items.map((e) => e.name));
-    if (kind == null) throw const FormatException('No Android or Flutter project detected');
+    if (kind == null) {
+      throw const FormatException('No Android or Flutter project detected');
+    }
     items.sort((a,b) => a.name.compareTo(b.name));
     hashes.sort();
     var manifest = const ManifestInfo();
@@ -218,9 +236,13 @@ class SourceProjectImport {
 
   static Future<void> saveDraft(String root, String relative, String original, String draft) async {
     final path = safePath(relative);
-    if (ignored(path)) throw const FormatException('Excluded file');
+    if (ignored(path)) {
+      throw const FormatException('Excluded file');
+    }
     final bytes = utf8.encode(draft);
-    if (bytes.length > 65536 || bytes.contains(0)) throw const FormatException('Draft exceeds 64 KiB or contains NUL');
+    if (bytes.length > 65536 || bytes.contains(0)) {
+      throw const FormatException('Draft exceeds 64 KiB or contains NUL');
+    }
     final base = await Directory(root).resolveSymbolicLinks();
     final file = File(p.joinAll([base, ...path.split('/')]));
     if (await FileSystemEntity.type(file.path, followLinks: false) != FileSystemEntityType.file ||
@@ -243,21 +265,30 @@ class SourceProjectImport {
     var total = 0;
     await for (final entity in Directory(base).list(recursive: true, followLinks: false)) {
       if (entity is Directory) continue;
-      if (entity is! File) throw const FormatException('Cannot export symbolic links');
+      if (entity is! File) {
+        throw const FormatException('Cannot export symbolic links');
+      }
       final relative = safePath(p.relative(entity.path, from: base).replaceAll('\\','/'));
       if (ignored(relative)) continue;
       final size = await entity.length();
       if (size > maxMember || used.length >= maxFiles || size > maxBytes - total ||
-          !used.add(relative)) throw const FormatException('Export limit exceeded');
+          !used.add(relative)) {
+            throw const FormatException('Export limit exceeded');
+          }
       final bytes = drafts.containsKey(relative) ? utf8.encode(drafts[relative]!) :
           await entity.readAsBytes();
+      if (drafts.containsKey(relative) && (bytes.length > 65536 || bytes.contains(0))) {
+        throw const FormatException('Invalid text draft');
+      }
       if (bytes.length > maxMember || bytes.length > maxBytes - total) {
         throw const FormatException('Export limit exceeded');
       }
       total += bytes.length;
       archive.addFile(ArchiveFile(relative, bytes.length, bytes));
     }
-    if (!used.containsAll(drafts.keys)) throw const FormatException('Draft file no longer exists');
+    if (!used.containsAll(drafts.keys)) {
+      throw const FormatException('Draft file no longer exists');
+    }
     final encoded = ZipEncoder().encode(archive);
     return Uint8List.fromList(encoded);
   }

@@ -561,7 +561,9 @@ String _formatSize(int bytes) {
   if (bytes >= 1024 * 1024) {
     return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
   }
-  if (bytes >= 1024) return '${(bytes / 1024).toStringAsFixed(1)} KB';
+  if (bytes >= 1024) {
+    return '${(bytes / 1024).toStringAsFixed(1)} KB';
+  }
   return '$bytes B';
 }
 
@@ -1980,7 +1982,7 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
           ),
           const ListTile(
             leading: Icon(Icons.build_circle_outlined),
-            title: Text('Version 0.9.2 — Preview'),
+            title: Text('Version 0.9.3 — Preview'),
             subtitle: Text('See docs/FEATURE_STATUS.md for engine limitations'),
           ),
         ],

@@ -19,7 +19,7 @@ void main() {
       ),
     );
 
-    expect(find.text('Import an APK or bundle'), findsOneWidget);
+    expect(find.text('Import APK or source project'), findsOneWidget);
     expect(
       find.byWidgetPredicate((widget) {
         if (widget is! Image) return false;

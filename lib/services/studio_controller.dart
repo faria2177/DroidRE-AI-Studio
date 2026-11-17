@@ -28,7 +28,9 @@ class StudioController extends ChangeNotifier {
   List<ApkReport> get projects => List.unmodifiable(_projects);
   ApkReport? get active {
     for (final report in _projects) {
-      if (report.id == _activeId) return report;
+      if (report.id == _activeId) {
+        return report;
+      }
     }
     return _projects.isEmpty ? null : _projects.first;
   }
@@ -256,7 +258,9 @@ class StudioController extends ChangeNotifier {
           return false;
         }
         final path = selected.files.single.path;
-        if (path == null) throw const FormatException('ZIP is not locally readable');
+        if (path == null) {
+          throw const FormatException('ZIP is not locally readable');
+        }
         name = selected.files.single.name;
         await Isolate.run(() => SourceProjectImport.extractZip(path, destination));
       }
@@ -290,7 +294,9 @@ class StudioController extends ChangeNotifier {
   }
 
   Future<bool> importApk() async {
-    if (_busy) return false;
+    if (_busy) {
+      return false;
+    }
     try {
       final result = await FilePicker.platform.pickFiles(
         type: FileType.custom,
@@ -298,7 +304,9 @@ class StudioController extends ChangeNotifier {
           'apk', 'aab', 'apks', 'xapk', 'apkm', 'zip',
         ],
       );
-      if (result == null || result.files.isEmpty) return false;
+      if (result == null || result.files.isEmpty) {
+        return false;
+      }
       final selected = result.files.first;
       final sourcePath = selected.path;
       if (sourcePath == null || sourcePath.isEmpty) {

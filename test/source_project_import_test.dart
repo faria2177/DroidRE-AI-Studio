@@ -28,7 +28,25 @@ void main() {
       expect(utf8.decode(result.findFile('app/src/main/java/Main.java')!.readBytes()!), 'class Edited {}');
       expect(result.findFile('app/src/main/assets/logo.bin')!.readBytes(), [1,2,3]);
       expect(await File('$dest/app/src/main/java/Main.java').readAsString(), 'class Main {}');
+      await SourceProjectImport.saveDraft(dest, 'app/src/main/java/Main.java', 'class Main {}', 'class Saved {}');
+      expect(await File('$dest/app/src/main/java/Main.java').readAsString(), 'class Saved {}');
+      await expectLater(SourceProjectImport.saveDraft(dest, 'app/src/main/java/Main.java', 'class Main {}', 'stale'), throwsFormatException);
     } finally { await root.delete(recursive: true); }
+  });
+  test('source folder copy prunes build caches and preserves wrapper assets', () async {
+    final dir = await Directory.systemTemp.createTemp('source-folder-');
+    try {
+      final input = await Directory('${dir.path}/original').create();
+      await File('${input.path}/pubspec.yaml').writeAsString('name: demo');
+      await Directory('${input.path}/lib').create();
+      await File('${input.path}/lib/main.dart').writeAsString('void main() {}');
+      await Directory('${input.path}/build').create();
+      await File('${input.path}/build/cache.bin').writeAsBytes([1,2]);
+      await SourceProjectImport.copyFolder(input.path, '${dir.path}/copy');
+      expect((await SourceProjectImport.describe('${dir.path}/copy', 'demo','2')).framework, 'Flutter source project');
+      expect(await File('${dir.path}/copy/build/cache.bin').exists(), false);
+      expect(await File('${input.path}/build/cache.bin').exists(), true);
+    } finally { await dir.delete(recursive: true); }
   });
   test('rejects unsafe paths and recognizes Flutter', () {
     for (final path in ['../a','/root','C:/x','dir/CON.txt','a\\b']) {
