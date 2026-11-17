@@ -20,6 +20,7 @@ import 'project_context_dialog.dart';
 import 'adb_device_screen.dart';
 import 'framework_binary_screen.dart';
 import 'universal_binary_screen.dart';
+import 'project_workspace_screen.dart';
 import 'package:file_picker/file_picker.dart';
 import '../services/framework_recovery_index.dart';
 import 'dart:convert';
@@ -1332,6 +1333,17 @@ class _ToolsScreenState extends State<ToolsScreen> {
           subtitle: const Text('PE / ELF header, hex pages and binary search'),
           onTap: () => Navigator.of(context).push(MaterialPageRoute<void>(
             builder: (_) => const UniversalBinaryScreen())),
+        )),
+        const SizedBox(height: 12),
+        Card(child: ListTile(
+          leading: const Icon(Icons.dashboard_customize_outlined),
+          title: const Text('Universal Project Workspace'),
+          subtitle: const Text('File tree · tabs · source drafts · local search'),
+          onTap: !Platform.isWindows && widget.report?.recoveredFolderUri == null &&
+              widget.report?.recoveredFolderPath == null ? null : () =>
+              Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) =>
+                ProjectWorkspaceScreen(folderPath: widget.report?.recoveredFolderPath,
+                  folderUri: widget.report?.recoveredFolderUri))),
         )),
         const SizedBox(height: 12),
         Text('Source Recovery — paged export',
