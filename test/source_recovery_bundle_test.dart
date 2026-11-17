@@ -100,6 +100,47 @@ void main() {
         file.name.endsWith('AndroidManifest.xml')), isEmpty);
   });
 
+  test('cursor validation rejects invalid syntax and out-of-range positions', () {
+    expect(() => SourceRecoveryCursor.parse('-1:0:0'), throwsFormatException);
+    expect(() => SourceRecoveryCursor.parse('1:2'), throwsFormatException);
+    expect(() => SourceRecoveryBundle.fromArchive(createSource(),
+        cursor: const SourceRecoveryCursor(dexIndex: 1)), throwsFormatException);
+    expect(() => SourceRecoveryBundle.fromArchive(createSource(),
+        cursor: const SourceRecoveryCursor(classIndex: 1)), throwsFormatException);
+    expect(() => SourceRecoveryBundle.fromArchive(createSource(),
+        cursor: const SourceRecoveryCursor(methodIndex: 205)), throwsFormatException);
+    expect(SourceRecoveryCursor.parse('2:3:4').token, '2:3:4');
+  });
+
+  test('pagination resumes within a class without losing later DEX methods', () {
+    final dex = makeManyMethodsDex();
+    final source = Archive();
+    for (final name in ['classes10.dex', 'classes3.dex', 'classes.dex', 'classes2.dex']) {
+      source.addFile(ArchiveFile.bytes(name, dex));
+    }
+    final first = SourceRecoveryBundle.fromArchive(source);
+    expect(first.nextCursor?.token, '1:0:195');
+    final second = SourceRecoveryBundle.fromArchive(source,
+        cursor: SourceRecoveryCursor.parse(first.nextCursor!.token));
+    expect(second.methodsExported, 400);
+    expect(second.nextCursor?.token, '3:0:185');
+    final last = SourceRecoveryBundle.fromArchive(source, cursor: second.nextCursor!);
+    expect(last.methodsExported, 20);
+    expect(last.nextCursor, isNull);
+    expect(first.methodsExported + second.methodsExported + last.methodsExported, 820);
+    final zip = ZipDecoder().decodeBytes(second.zipBytes, throwOnError: true);
+    final report = jsonDecode(utf8.decode(zip.files.singleWhere(
+        (file) => file.name == 'REPORT.json').readBytes()!)) as Map<String, dynamic>;
+    expect(report['dexOrder'], ['classes.dex', 'classes2.dex', 'classes3.dex', 'classes10.dex']);
+    expect(report['startCursor']['token'], '1:0:195');
+    expect(report['nextCursor']['token'], '3:0:185');
+    final entries = report['entries'] as List;
+    final resumed = entries.first as Map<String, dynamic>;
+    expect(resumed['firstMethodOrdinal'], 195);
+    expect(resumed['processedMethods'], 10);
+    expect(resumed['dex'], 'classes2.dex');
+  });
+
   test('DEX count is bounded and skipped DEX files are reported', () {
     final dex = makeManyMethodsDex();
     final source = Archive()

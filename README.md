@@ -2,7 +2,7 @@
 
 An **Android-first Flutter project** for offline APK inspection and optional AI code explanations.
 
-**Current version:** 0.6.0 — indexed Multi-DEX static call graph, offset-preserving Java-like pseudocode, Google OAuth configuration in Settings, Dalvik disassembly, binary XML and opt-in AI review; not a full JADX or Apktool replacement.
+**Current version:** 0.7.0 — indexed Multi-DEX static call graph, offset-preserving Java-like pseudocode, Google OAuth configuration in Settings, Dalvik disassembly, binary XML and opt-in AI review; not a full JADX or Apktool replacement.
 
 ## What works today
 
@@ -45,12 +45,14 @@ text, decoded/raw resource previews, technology-specific analysis for
 Native Android, Flutter, React Native, Unity or NativeScript, and structured DEX class metadata (superclasses, interfaces, source-file
 hints and fields in \`CLASS_METADATA.json\`), bounded try/catch and
 code-reference details in \`method_semantics.json\`, and annotation type
-inventories in \`ANNOTATIONS_INDEX.json\` (no annotation value decoding).
+inventories and bounded encoded values in \`ANNOTATIONS_INDEX.json\`.
 Where debug information exists, `method_debug_info.json` also contains
 source line/parameter/local-variable names; stripped or invalid debug data
 is not guessed. Coverage warnings remain in \`REPORT.json\`. It is **not** original source, compilable Java,
 assemblable Smali or a rebuildable Android Studio/Flutter project.
 If the user cancels folder selection, importing the APK still succeeds.
+For large APKs, Tools → Export Source Preview ZIP supports a zero-based
+DEX:class:method cursor; the next cursor is filled after a successful save.
 See [Source Recovery](docs/SOURCE_RECOVERY.md) for limits, permitted folder
 locations, and privacy details.
 

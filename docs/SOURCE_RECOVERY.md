@@ -116,9 +116,22 @@ Split APK containers (APKS/APKM/XAPK) and AAB packages are not fully
 reconstructed by this milestone; their nested DEX and resource content
 may not be decoded.
 
+## Continue large APK recovery
+
+Under Tools, the Source Preview ZIP export accepts a zero-based
+`DEX:class:method` cursor (start with `0:0:0`). Each successful save fills
+the next cursor automatically. Export again until `nextCursor` is null.
+Each ZIP has a distinct start-position filename. `REPORT.json` contains
+`startCursor`, `nextCursor`, `dexOrder`, and per-class method ordinals.
+Paste a saved cursor to resume later. The three DEX / 80 class / 400
+method cap now applies per window, not to the entire sequence of exports.
+Malformed or oversized inputs may still be skipped and reported; a null
+cursor is not a guarantee of full recovery. Public-folder auto-generation
+still writes the initial window only. Resource previews can repeat.
+
 ## Scope, safety and limits
 
-- First 3 supported DEX files, 80 classes and 400 methods.
+- Per window: up to 3 DEX entries, 80 classes and 400 methods.
 - Up to 512 field declarations and 128 interfaces per class. Truncation
   is reported instead of silently discarding additional declarations.
 - At most 32 small resources (256 KiB each, 4 MiB combined).
@@ -150,8 +163,8 @@ may not be decoded.
 
 ## Validation status
 
-The source code and regression tests are committed, but **no new APK
-build or CI run was requested**. Android 11–16 device validation is still
+The source code and regression tests are committed. Check the latest
+GitHub Actions run for analyzer, test and debug APK results. Android 11–16 device validation is still
 required, especially for folder picker grants, document-provider
 performance, cancellation, storage quotas and File Manager access.
 

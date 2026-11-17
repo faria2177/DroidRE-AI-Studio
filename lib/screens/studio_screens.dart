@@ -889,6 +889,22 @@ class ToolsScreen extends StatefulWidget {
 class _ToolsScreenState extends State<ToolsScreen> {
   bool exporting = false;
   String exportStatus = '';
+  final recoveryCursor = TextEditingController(text: '0:0:0');
+
+  @override
+  void didUpdateWidget(covariant ToolsScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.report?.id != widget.report?.id) {
+      recoveryCursor.text = '0:0:0';
+      exportStatus = '';
+    }
+  }
+
+  @override
+  void dispose() {
+    recoveryCursor.dispose();
+    super.dispose();
+  }
 
   Future<void> _exportSourcePreview() async {
     final selected = widget.report;
@@ -900,8 +916,9 @@ class _ToolsScreenState extends State<ToolsScreen> {
       exportStatus = '';
     });
     try {
-      final bundle = await SourceRecoveryBundle.fromProject(selected);
-      if (!mounted) {
+      final cursor = SourceRecoveryCursor.parse(recoveryCursor.text);
+      final bundle = await SourceRecoveryBundle.fromProject(selected, cursor: cursor);
+      if (!mounted || widget.report?.id != selected.id) {
         return;
       }
       final cleanName = selected.packageLabel
@@ -909,26 +926,35 @@ class _ToolsScreenState extends State<ToolsScreen> {
       final name = cleanName.length > 48
           ? cleanName.substring(0, 48) : cleanName;
       final filename = '${name.isEmpty ? 'recovered-app' : name}'
-          '-source-preview.zip';
+          '-source-preview-${cursor.dexIndex + 1}-'
+          '${cursor.classIndex + 1}-${cursor.methodIndex + 1}.zip';
       final saved = await FilePicker.platform.saveFile(
         dialogTitle: 'Save read-only source recovery bundle',
         fileName: filename,
         bytes: bundle.zipBytes,
       );
-      if (!mounted) {
+      if (!mounted || widget.report?.id != selected.id) {
         return;
       }
       if (saved == null) {
         setState(() => exportStatus = 'Export cancelled');
       } else {
-        setState(() => exportStatus =
-            'Saved $filename · ${bundle.dexFilesVisited} DEX files, '
-            '${bundle.classesExported} classes, '
-            '${bundle.methodsExported} methods'
-            '${bundle.partial ? ' · PARTIAL (see REPORT.json)' : ''}');
+        setState(() {
+          final next = bundle.nextCursor;
+          if (next != null) {
+            recoveryCursor.text = next.token;
+          }
+          exportStatus =
+              'Saved $filename · ${bundle.dexFilesVisited} DEX files, '
+              '${bundle.classesExported} classes, '
+              '${bundle.methodsExported} methods'
+              '${bundle.partial ? ' · PARTIAL (see REPORT.json)' : ''}'
+              '${next == null ? ' · No further window' :
+                  ' · Next: ${next.token}. Export again to continue.'}';
+        });
       }
     } catch (error) {
-      if (mounted) {
+      if (mounted && widget.report?.id == selected.id) {
         setState(() => exportStatus = 'Source export failed: $error');
       }
     } finally {
@@ -975,7 +1001,7 @@ class _ToolsScreenState extends State<ToolsScreen> {
           ),
         ),
         const SizedBox(height: 12),
-        Text('Source Recovery — first milestone',
+        Text('Source Recovery — paged export',
             style: Theme.of(context).textTheme.titleMedium),
         Card(
           child: Padding(
@@ -1024,6 +1050,19 @@ class _ToolsScreenState extends State<ToolsScreen> {
                     'writable subfolder. Existing generated project folders '
                     'will never be overwritten.'),
                 const SizedBox(height: 12),
+                TextField(
+                  controller: recoveryCursor,
+                  enabled: widget.report != null && !exporting,
+                  decoration: const InputDecoration(
+                    labelText: 'Recovery cursor (DEX:class:method)',
+                    helperText: 'Zero-based. Next cursor fills after saving a ZIP.',
+                    helperMaxLines: 2,
+                    border: OutlineInputBorder(),
+                  ),
+                  autocorrect: false,
+                  enableSuggestions: false,
+                ),
+                const SizedBox(height: 8),
                 OutlinedButton.icon(
                   onPressed: widget.report == null || exporting
                       ? null : _exportSourcePreview,
